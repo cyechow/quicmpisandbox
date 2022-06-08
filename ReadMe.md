@@ -30,6 +30,7 @@ Reasons for exploring MsQuic instead of just using MPI to pass data between rank
 * Figure out a better way to create testing SSL certificates other than adding to repository.
 * Clean up artifacts (.dll & .pem files) on project/solution clean.
 * Centralize the logging s.t. timestamp and rank # are added with each log.
+* Add in an iterative MPI structure used in the actual simulations (see [stack overflow question](https://stackoverflow.com/questions/71800790/mpi-igatherv-received-buffers-arent-filled-with-larger-amounts-of-data-sent)).
 
 ## License
 * Code from MsQuic is open sourced under the MIT license, see [here](https://github.com/microsoft/msquic/blob/main/LICENSE) for full license.
