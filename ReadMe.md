@@ -28,3 +28,6 @@ Reasons for exploring MsQuic instead of just using MPI to pass data between rank
 * Figure out why we get QUIC_STATUS_TLS_ERROR (QuicDriver::ServerLoadConfiguration: ConfigurationLoadCredential failed, 0x80072b18!) in Release but not Debug.
 * Clean up artifacts (.dll & .pem files) on project/solution clean.
 * Centralize the logging s.t. timestamp and rank # are added with each log.
+
+## License
+* Code from MsQuic is open sourced under the MIT license, see [here](https://github.com/microsoft/msquic/blob/main/LICENSE) for full license.
