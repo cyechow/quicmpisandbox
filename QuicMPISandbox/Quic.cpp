@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-Quic::Driver*			Quic::sm_pDriver			= NULL;
-std::string				Quic::sm_zTestCertFile		= "mpicert.pem";
-std::string				Quic::sm_zTestKeyFile		= "key.pem";
+Quic::Driver*			Quic::sm_pDriver = NULL;
+std::string				Quic::sm_zTestCertFile = "mpicert.pem";
+std::string				Quic::sm_zTestKeyFile = "key.pem";
 
 void
 Quic::S_SetDriver( Driver* pDriver )
@@ -209,49 +209,49 @@ Quic::S_ServerListenerCallback( HQUIC, void*, QUIC_LISTENER_EVENT* Event )
 QUIC_STATUS QUIC_API
 Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 {
-switch ( Event->Type )
-{
-case QUIC_STREAM_EVENT_SEND_COMPLETE:
-	//
-	// A previous StreamSend call has completed, and the context is being
-	// returned back to the app.
-	//
-	free( Event->SEND_COMPLETE.ClientContext );
-	printf( "[strm][%p] Data sent\n", Stream );
-	break;
-case QUIC_STREAM_EVENT_RECEIVE:
-	//
-	// Data was received from the peer on the stream.
-	//
-	printf( "[strm][%p] Data received\n", Stream );
-	break;
-case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
-	//
-	// The peer gracefully shut down its send direction of the stream.
-	//
-	printf( "[strm][%p] Peer aborted\n", Stream );
-	break;
-case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
-	//
-	// The peer aborted its send direction of the stream.
-	//
-	printf( "[strm][%p] Peer shut down\n", Stream );
-	break;
-case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
-	//
-	// Both directions of the stream have been shut down and MsQuic is done
-	// with the stream. It can now be safely cleaned up.
-	//
-	printf( "[strm][%p] All done\n", Stream );
-	if ( !Event->SHUTDOWN_COMPLETE.AppCloseInProgress )
+	switch ( Event->Type )
 	{
-		S_GetDriver()->GetMsQuic()->StreamClose( Stream );
+	case QUIC_STREAM_EVENT_SEND_COMPLETE:
+		//
+		// A previous StreamSend call has completed, and the context is being
+		// returned back to the app.
+		//
+		free( Event->SEND_COMPLETE.ClientContext );
+		printf( "[strm][%p] Data sent\n", Stream );
+		break;
+	case QUIC_STREAM_EVENT_RECEIVE:
+		//
+		// Data was received from the peer on the stream.
+		//
+		printf( "[strm][%p] Data received\n", Stream );
+		break;
+	case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+		//
+		// The peer gracefully shut down its send direction of the stream.
+		//
+		printf( "[strm][%p] Peer aborted\n", Stream );
+		break;
+	case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+		//
+		// The peer aborted its send direction of the stream.
+		//
+		printf( "[strm][%p] Peer shut down\n", Stream );
+		break;
+	case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+		//
+		// Both directions of the stream have been shut down and MsQuic is done
+		// with the stream. It can now be safely cleaned up.
+		//
+		printf( "[strm][%p] All done\n", Stream );
+		if ( !Event->SHUTDOWN_COMPLETE.AppCloseInProgress )
+		{
+			S_GetDriver()->GetMsQuic()->StreamClose( Stream );
+		}
+		break;
+	default:
+		break;
 	}
-	break;
-default:
-	break;
-}
-return QUIC_STATUS_SUCCESS;
+	return QUIC_STATUS_SUCCESS;
 }
 
 QUIC_STATUS QUIC_API
