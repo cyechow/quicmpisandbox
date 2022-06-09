@@ -8,13 +8,13 @@ This is a proof-of-concept sandbox for using [MsQuic](https://github.com/microso
 This is meant for a desktop application that can also be run via command line.
 
 ## Build Notes
-* Built successfully with vS2019. Should be able to restore nuget packages and build without problems.
-* Only works in debug (see [TODO](#todo)).
+* Built successfully with VS2019. Should be able to restore nuget packages and build without problems.
 * Requires MPI installed to test, installers [here](https://github.com/microsoft/Microsoft-MPI/releases/tag/v10.1.1).
 * Run `mpiexec -n 2 QuicMPISandbox.exe` through command line to test on machine.
 * In `main.cpp`'s `main` function:
-  * Use `RunQuicOnlyTest()` to run without MPI involved, again only works in Debug.
+  * Use `RunQuicOnlyTest()` to run without MPI involved.
 * Added in .pem files for testing, these aren't used anywhere and is only for testing. Don't use in any production code.
+* If running via debugging in VS, make sure that the Debugging->Working Directory setting is pointed to the output directory.
 
 ## Notes
 
@@ -26,7 +26,6 @@ Reasons for exploring MsQuic instead of just using MPI to pass data between rank
 * The specs of the machine(s) running the application isn't under my control so this has to work regardless of hardware.
 
 ## TODO
-* Figure out why we get QUIC_STATUS_TLS_ERROR (QuicDriver::ServerLoadConfiguration: ConfigurationLoadCredential failed, 0x80072b18!) in Release but not Debug.
 * Figure out a better way to create testing SSL certificates other than adding to repository.
 * Clean up artifacts (.dll & .pem files) on project/solution clean.
 * Centralize the logging s.t. timestamp and rank # are added with each log.
