@@ -154,9 +154,9 @@ int MainCommon( int iNumArgs, char** azArgs )
 {
 #endif
 
-	//RunQuicOnlyTest();
+	RunQuicOnlyTest();
 
-	RunMpiTest( iNumArgs, azArgs );
+	//RunMpiTest( iNumArgs, azArgs );
 
 	return 0;
 }

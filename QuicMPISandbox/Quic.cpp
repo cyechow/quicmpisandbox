@@ -3,8 +3,9 @@
 #include <stdlib.h>
 
 Quic::Driver*			Quic::sm_pDriver = NULL;
-std::string				Quic::sm_zTestCertFile = "mpicert.pem";
-std::string				Quic::sm_zTestKeyFile = "key.pem";
+std::string				Quic::sm_zTestCertFile = "mpicertopen.pem";
+std::string				Quic::sm_zTestKeyFile = "mpikeyopen.pem";
+std::string				Quic::sm_zTestPassPhrase = "quicmpisandbox";
 
 void
 Quic::S_SetDriver( Driver* pDriver )

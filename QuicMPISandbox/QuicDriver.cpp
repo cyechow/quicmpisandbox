@@ -82,6 +82,7 @@ QuicDriver::CreateListener( uint16_t iPort )
 
 	std::string zCertFile = Quic::S_GetTestCertFileName();
 	std::string zKeyFile = Quic::S_GetTestKeyFileName();
+	//std::string zPassPhrase = Quic::S_GetTestPassPhrase();
 	printf( "%s: Cert - %s. Key - %s\n", __FUNCTION__, zCertFile.c_str(), zKeyFile.c_str() );
 	if ( !ServerLoadConfiguration( zCertFile.c_str(), zKeyFile.c_str() ) ) return;
 

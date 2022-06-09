@@ -53,7 +53,7 @@ private:
 	// the app (used for persistent storage and for debugging). It also configures
 	// the execution profile, using the default "low latency" profile.
 	//
-	const QUIC_REGISTRATION_CONFIG				m_RegConfig = { "quicsample", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+	const QUIC_REGISTRATION_CONFIG				m_RegConfig = { "QuicMpiSandbox", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
 
 	//
 	// The protocol name used in the Application Layer Protocol Negotiation (ALPN).

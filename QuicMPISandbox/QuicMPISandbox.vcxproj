@@ -64,8 +64,10 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)Certificates\mpicert.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mmmpicert.pem"
-copy /Y "$(SolutionDir)Certificates\key.pem" "$(SolutionDir)$(Platform)\$(Configuration)\key.pem"</Command>
+      <Command>copy /Y "$(SolutionDir)Certificates\mpicert.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpicert.pem"
+copy /Y "$(SolutionDir)Certificates\mpikey.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpikey.pem"
+copy /Y "$(SolutionDir)Certificates\mpicertopen.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpicertopen.pem"
+copy /Y "$(SolutionDir)Certificates\mpikeyopen.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpikeyopen.pem"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -84,8 +86,10 @@ copy /Y "$(SolutionDir)Certificates\key.pem" "$(SolutionDir)$(Platform)\$(Config
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)Certificates\mpicert.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mmmpicert.pem"
-copy /Y "$(SolutionDir)Certificates\key.pem" "$(SolutionDir)$(Platform)\$(Configuration)\key.pem"</Command>
+      <Command>copy /Y "$(SolutionDir)Certificates\mpicert.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpicert.pem"
+copy /Y "$(SolutionDir)Certificates\mpikey.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpikey.pem"
+copy /Y "$(SolutionDir)Certificates\mpicertopen.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpicertopen.pem"
+copy /Y "$(SolutionDir)Certificates\mpikeyopen.pem" "$(SolutionDir)$(Platform)\$(Configuration)\mpikeyopen.pem"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

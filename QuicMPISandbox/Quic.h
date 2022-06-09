@@ -62,6 +62,7 @@ public:
 
 	static std::string		S_GetTestCertFileName() { return sm_zTestCertFile; }
 	static std::string		S_GetTestKeyFileName() { return sm_zTestKeyFile; }
+	static std::string		S_GetTestPassPhrase() { return sm_zTestPassPhrase; }
 
 	//
 	// The server's callback for stream events from MsQuic.
@@ -135,4 +136,5 @@ private:
 	static Driver*			sm_pDriver;
 	static std::string		sm_zTestCertFile;
 	static std::string		sm_zTestKeyFile;
+	static std::string		sm_zTestPassPhrase;
 };
