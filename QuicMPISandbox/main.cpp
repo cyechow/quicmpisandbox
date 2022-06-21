@@ -8,6 +8,7 @@
 #include <iostream>
 #include <sstream>
 #include <thread>
+#include <chrono>
 
 #include <codecvt>
 
@@ -35,11 +36,12 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 		MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
 	}
 
-	// Set writer rank to 0:
-	int iWriterRank = 0;
-
+	// Set receiver rank to 0:
+	int iReceiverRank = 0;
 	int iLocalRank;
 	MPI_Comm_rank( MPI_COMM_WORLD, &iLocalRank );
+
+	bool									bIsReceiverRank = iLocalRank == iReceiverRank;
 
 	Quic::S_RegisterDriver( new QuicDriver() );
 	uint64_t sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
@@ -48,11 +50,23 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	// Sync up here.
 	MPI_Barrier( MPI_COMM_WORLD );
 
-	if ( iLocalRank == iWriterRank )
+	uint16_t iPort = 4477;
+
+	// Check host names:
+	char cHostName[MPI_MAX_PROCESSOR_NAME];
+	int iNameLen;
+	MPI_Get_processor_name( cHostName, &iNameLen );
+	sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+	printf( "[%" PRIu64  "] Rank %d: Hostname: %s.\n", sec, iLocalRank, cHostName);
+
+	// Will set this in the receiver rank:
+	char cIpAddress[INET_ADDRSTRLEN];
+
+	if ( bIsReceiverRank )
 	{
 		sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
 		printf( "[%" PRIu64  "] Rank %d: Creating Quic listener...\n", sec, iLocalRank );
-		Quic::S_CreateListener( 4477 );
+		Quic::S_CreateListener( iPort );
 
 		// TODO: Make sure listener is connected and running before syncing with other threads.
 		auto start = std::chrono::high_resolution_clock::now();
@@ -63,6 +77,47 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 			if ( elapsed.count() > 10000 ) break;
 			std::this_thread::sleep_for( 100ms );
 		}
+
+
+		// Get IP address to send to client threads.
+		// Listener is listening on all IP addresses to take the first (preferred) one.
+		struct addrinfo* result = NULL;
+		struct addrinfo* ptr = NULL;
+		struct addrinfo hints;
+		ZeroMemory( &hints, sizeof( hints ) );
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+		char cPort[80];
+		sprintf( cPort, "%" PRIu16, iPort );
+
+		DWORD dwRetval = getaddrinfo( cHostName, cPort, &hints, &result );
+		if ( dwRetval != 0 )
+		{
+			sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+			printf( "[%" PRIu64  "] Rank %d: Could not get address info.\n", sec, iLocalRank );
+			MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
+			return;
+		}
+
+		for ( ptr = result; ptr != NULL; ptr = ptr->ai_next )
+		{
+			if ( ptr->ai_family == AF_INET )
+			{
+				sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+				printf( "[%" PRIu64  "] Rank %d: AF_INET (IPv4)\n", sec, iLocalRank );
+				struct sockaddr_in* sockaddr_ipv4 = (struct sockaddr_in*)ptr->ai_addr;
+				IN_ADDR ipAddress = sockaddr_ipv4->sin_addr;
+				inet_ntop( AF_INET, &ipAddress, cIpAddress, INET_ADDRSTRLEN );
+
+				sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+				printf( "[%" PRIu64  "] Rank %d: \tIPv4 address %s\n", sec, iLocalRank, cIpAddress );
+				break;
+			}
+		}
+
+		sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+		printf( "[%" PRIu64  "] Rank %d: IP Address is %s...\n", sec, iLocalRank, cIpAddress );
 	}
 	else
 	{
@@ -73,16 +128,12 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	// Sync up here.
 	MPI_Barrier( MPI_COMM_WORLD );
 
-	auto xIsWriterRank = [&iLocalRank, iWriterRank]() { return iLocalRank == iWriterRank; };
-
-	// TODO: Send IP address and port information for non-writer threads to know what the client is connecting to.
-
 	// Send/receive listener status:
-	int buffer_send = xIsWriterRank() ? ( Quic::S_IsListenerRunning() ? 1 : 0 ) : 1;
+	int buffer_send = bIsReceiverRank ? ( Quic::S_IsListenerRunning() ? 1 : 0 ) : 1;
 	int buffer_recv;
 	int tag_send = 0;
 	int tag_recv = tag_send;
-	int peer = xIsWriterRank() ? 1 : 0;
+	int peer = bIsReceiverRank ? 1 : 0;
 
 	MPI_Sendrecv( &buffer_send, 1, MPI_INT, peer, tag_send,
 		&buffer_recv, 1, MPI_INT, peer, tag_recv, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
@@ -90,18 +141,41 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
 	printf( "[%" PRIu64  "] Rank %d: Received value %d from MPI rank %d.\n", sec, iLocalRank, buffer_recv, peer );
 
-	if ( iLocalRank != iWriterRank )
+	if ( bIsReceiverRank )
+	{
+		if ( !Quic::S_IsListenerRunning() )
+		{
+			MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
+			return;
+		}
+	}
+
+	// TODO: Send IP address and port information for non-writer threads to know what the client is connecting to.
+	char cIpAddress_recv[INET_ADDRSTRLEN];
+	MPI_Sendrecv( &cIpAddress, INET_ADDRSTRLEN, MPI_INT, peer, tag_send,
+		&cIpAddress_recv, INET_ADDRSTRLEN, MPI_INT, peer, tag_recv, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+
+	printf( "[%" PRIu64  "] Rank %d: Received value %s from MPI rank %d.\n", sec, iLocalRank, cIpAddress_recv, peer );
+
+	// Create client with the IP address information:
+	if ( !bIsReceiverRank )
 	{
 		if ( buffer_recv == 1 )
 		{
 			std::this_thread::sleep_for( 1000ms );
 			sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-			printf( "[%" PRIu64  "] Rank %d: Creating Quic client...\n", sec, iLocalRank );
-			Quic::S_CreateClient( "127.0.0.1", 4477 );
+			printf( "[%" PRIu64  "] Rank %d: Creating Quic client, connecting to %s on port %d...\n", sec, iLocalRank, cIpAddress_recv, iPort );
+			Quic::S_CreateClient( cIpAddress_recv, iPort );
 		}
 	}
 
 	std::this_thread::sleep_for( 5000ms );
+
+	if ( bIsReceiverRank )
+	{
+		HQUIC stream;
+		Quic::S_GetDriver()->ServerSend( stream );
+	}
 
 	// Sync up here.
 	MPI_Barrier( MPI_COMM_WORLD );
@@ -111,15 +185,16 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 void RunQuicOnlyTest()
 {
+	uint16_t iPort = 4477;
 	Quic::S_RegisterDriver( new QuicDriver() );
 	printf( "Registered Quic driver.\n" );
 
 	printf( "Creating Quic listener...\n" );
-	Quic::S_CreateListener( 4477 );
+	Quic::S_CreateListener( iPort );
 
 	std::this_thread::sleep_for( 100ms );
 	printf( "Creating Quic client...\n" );
-	Quic::S_CreateClient( "127.0.0.1", 4477 );
+	Quic::S_CreateClient( "127.0.0.1", iPort );
 
 	std::this_thread::sleep_for( 10000ms );
 }

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include <string>
+#include <ip2string.h>
 
 QuicDriver::QuicDriver() :
 	m_MsQuic( nullptr ),
@@ -77,7 +78,7 @@ QuicDriver::CreateListener( uint16_t iPort )
 	// addresses and the given UDP port.
 	//
 	QUIC_ADDR Address{ 0 };
-	QuicAddrSetFamily( &Address, QUIC_ADDRESS_FAMILY_UNSPEC );
+	QuicAddrSetFamily( &Address, QUIC_ADDRESS_FAMILY_INET );
 	QuicAddrSetPort( &Address, iPort );
 
 	std::string zCertFile = Quic::S_GetTestCertFileName();
