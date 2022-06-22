@@ -19,6 +19,7 @@ public:
 	virtual void		CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnsecure, const char* pResumptionTicket ) override;
 	virtual bool		ClientLoadConfiguration( bool bUnsecure ) override;
 	virtual void		ClientSend( HQUIC Connection ) override;
+	virtual void		ClientSend() override;
 
 	virtual HQUIC		GetRegistration() override { return m_Registration; }
 	virtual HQUIC		GetListenerConfiguration() override { return m_ListenerConfiguration; }
@@ -90,6 +91,7 @@ private:
 	//
 	HQUIC										m_ListenerConfiguration;
 	HQUIC										m_ClientConfiguration;
+	HQUIC										m_ClientConnection;
 
 	HRESULT										m_ListenerStatus;
 	HRESULT										m_ClientStatus;

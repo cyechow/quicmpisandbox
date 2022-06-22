@@ -87,7 +87,7 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 		ZeroMemory( &hints, sizeof( hints ) );
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
+		hints.ai_protocol = IPPROTO_UDP;
 		char cPort[80];
 		sprintf( cPort, "%" PRIu16, iPort );
 
@@ -171,11 +171,14 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 	std::this_thread::sleep_for( 5000ms );
 
-	if ( bIsReceiverRank )
-	{
-		HQUIC stream;
-		Quic::S_GetDriver()->ServerSend( stream );
-	}
+	//if ( !bIsReceiverRank )
+	//{
+	//	Quic::S_GetDriver()->ClientSend();
+	//}
+
+	//sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+	//printf( "[%" PRIu64  "] Rank %d: Destroying Quic driver...\n", sec, iLocalRank );
+	//Quic::S_DestroyDriver();
 
 	// Sync up here.
 	MPI_Barrier( MPI_COMM_WORLD );

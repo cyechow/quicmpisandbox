@@ -35,6 +35,7 @@ public:
 		virtual void		CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnsecure, const char* pResumptionTicket ) = 0;
 		virtual bool		ClientLoadConfiguration( bool bUnsecure ) = 0;
 		virtual void		ClientSend( HQUIC Connection ) = 0;
+		virtual void		ClientSend() = 0;
 
 		virtual HQUIC		GetRegistration() = 0;
 		virtual HQUIC		GetListenerConfiguration() = 0;

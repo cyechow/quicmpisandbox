@@ -11,6 +11,7 @@ QuicDriver::QuicDriver() :
 	m_Registration( nullptr ),
 	m_ListenerConfiguration( nullptr ),
 	m_ClientConfiguration( nullptr ),
+	m_ClientConnection( nullptr ),
 	m_ListenerStatus( QUIC_STATUS_NOT_FOUND ),
 	m_ClientStatus( QUIC_STATUS_NOT_FOUND ),
 	m_bListenerRunning( false ),
@@ -239,7 +240,7 @@ QuicDriver::ServerSend( HQUIC Stream )
 	SendBuffer->Buffer = (uint8_t*)SendBufferRaw + sizeof( QUIC_BUFFER );
 	SendBuffer->Length = m_SendBufferLength;
 
-	printf( "[strm][%p] Sending data...\n", Stream );
+	printf( "[strm][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -248,6 +249,7 @@ QuicDriver::ServerSend( HQUIC Stream )
 	//
 	QUIC_STATUS Status;
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_FIN, SendBuffer ) ) )
+	//if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		free( SendBufferRaw );
@@ -276,15 +278,13 @@ QuicDriver::CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnse
 		return;
 	}
 
-	HQUIC clientConnection;
-
 	//
 	// Allocate a new connection object.
 	//
-	if ( QUIC_FAILED( m_ClientStatus = m_MsQuic->ConnectionOpen( m_Registration, Quic::S_ClientConnectionCallback, nullptr, &clientConnection ) ) )
+	if ( QUIC_FAILED( m_ClientStatus = m_MsQuic->ConnectionOpen( m_Registration, Quic::S_ClientConnectionCallback, nullptr, &m_ClientConnection ) ) )
 	{
 		printf( "ConnectionOpen failed, 0x%x!\n", m_ClientStatus );
-		CloseClientConnection( clientConnection );
+		CloseClientConnection( m_ClientConnection );
 		return;
 	}
 
@@ -296,10 +296,10 @@ QuicDriver::CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnse
 		//
 		uint8_t ResumptionTicket[1024];
 		uint16_t TicketLength = (uint16_t)DecodeHexBuffer( pResumptionTicket, sizeof( ResumptionTicket ), ResumptionTicket );
-		if ( QUIC_FAILED( m_ClientStatus = m_MsQuic->SetParam( clientConnection, QUIC_PARAM_CONN_RESUMPTION_TICKET, TicketLength, ResumptionTicket ) ) )
+		if ( QUIC_FAILED( m_ClientStatus = m_MsQuic->SetParam( m_ClientConnection, QUIC_PARAM_CONN_RESUMPTION_TICKET, TicketLength, ResumptionTicket ) ) )
 		{
 			printf( "SetParam(QUIC_PARAM_CONN_RESUMPTION_TICKET) failed, 0x%x!\n", m_ClientStatus );
-			CloseClientConnection( clientConnection );
+			CloseClientConnection( m_ClientConnection );
 			return;
 		}
 	}
@@ -310,19 +310,19 @@ QuicDriver::CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnse
 	if ( pTargetAddress == nullptr )
 	{
 		m_ClientStatus = QUIC_STATUS_INVALID_PARAMETER;
-		CloseClientConnection( clientConnection );
+		CloseClientConnection( m_ClientConnection );
 		return;
 	}
 
-	printf( "[conn][%p] Connecting...\n", clientConnection );
+	printf( "[conn][%p] Connecting...\n", m_ClientConnection );
 
 	//
 	// Start the connection to the server.
 	//
-	if ( QUIC_FAILED( m_ClientStatus = m_MsQuic->ConnectionStart( clientConnection, m_ClientConfiguration, QUIC_ADDRESS_FAMILY_UNSPEC, pTargetAddress, iPort ) ) )
+	if ( QUIC_FAILED( m_ClientStatus = m_MsQuic->ConnectionStart( m_ClientConnection, m_ClientConfiguration, QUIC_ADDRESS_FAMILY_UNSPEC, pTargetAddress, iPort ) ) )
 	{
 		printf( "ConnectionStart failed, 0x%x!\n", m_ClientStatus );
-		CloseClientConnection( clientConnection );
+		CloseClientConnection( m_ClientConnection );
 		return;
 	}
 }
@@ -422,7 +422,7 @@ QuicDriver::ClientSend( HQUIC Connection )
 	SendBuffer->Buffer = SendBufferRaw + sizeof( QUIC_BUFFER );
 	SendBuffer->Length = m_SendBufferLength;
 
-	printf( "[strm][%p] Sending data...\n", Stream );
+	printf( "[strm][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -434,6 +434,71 @@ QuicDriver::ClientSend( HQUIC Connection )
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		free( SendBufferRaw );
 		ShutdownClientConnection( Connection );
+		return;
+	}
+}
+
+void
+QuicDriver::ClientSend()
+{
+	QUIC_STATUS Status;
+	HQUIC Stream = nullptr;
+	uint8_t* SendBufferRaw;
+	QUIC_BUFFER* SendBuffer;
+
+	//
+	// Create/allocate a new bidirectional stream. The stream is just allocated
+	// and no QUIC stream identifier is assigned until it's started.
+	//
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamOpen( m_ClientConnection, QUIC_STREAM_OPEN_FLAG_NONE, Quic::S_ClientStreamCallback, nullptr, &Stream ) ) )
+	{
+		printf( "StreamOpen failed, 0x%x!\n", Status );
+		ShutdownClientConnection( m_ClientConnection );
+		return;
+	}
+
+	printf( "[strm][%p] Starting...\n", Stream );
+
+	//
+	// Starts the bidirectional stream. By default, the peer is not notified of
+	// the stream being started until data is sent on the stream.
+	//
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamStart( Stream, QUIC_STREAM_START_FLAG_NONE ) ) )
+	{
+		printf( "StreamStart failed, 0x%x!\n", Status );
+		m_MsQuic->StreamClose( Stream );
+		ShutdownClientConnection( m_ClientConnection );
+		return;
+	}
+
+	uint32_t iSendBufferLength = 1024;
+
+	//
+	// Allocates and builds the buffer to send over the stream.
+	//
+	SendBufferRaw = (uint8_t*)malloc( sizeof( QUIC_BUFFER ) + iSendBufferLength );
+	if ( SendBufferRaw == nullptr )
+	{
+		printf( "SendBuffer allocation failed!\n" );
+		Status = QUIC_STATUS_OUT_OF_MEMORY;
+		ShutdownClientConnection( m_ClientConnection );
+		return;
+	}
+
+	SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
+	SendBuffer->Buffer = (uint8_t*)SendBufferRaw + sizeof( QUIC_BUFFER );
+	SendBuffer->Length = iSendBufferLength;
+
+	printf( "[strm][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
+
+	//
+	// Sends the buffer over the stream.
+	//
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer ) ) )
+	{
+		printf( "StreamSend failed, 0x%x!\n", Status );
+		free( SendBufferRaw );
+		ShutdownClientConnection( m_ClientConnection );
 		return;
 	}
 }
