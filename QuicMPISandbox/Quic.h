@@ -35,7 +35,7 @@ public:
 		virtual void		CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnsecure, const char* pResumptionTicket ) = 0;
 		virtual bool		ClientLoadConfiguration( bool bUnsecure ) = 0;
 		virtual void		ClientSend( HQUIC Connection ) = 0;
-		virtual void		ClientSend() = 0;
+		virtual void		ClientSendData( std::string zBuffer ) = 0;
 
 		virtual HQUIC		GetRegistration() = 0;
 		virtual HQUIC		GetListenerConfiguration() = 0;
@@ -47,6 +47,12 @@ public:
 
 		virtual void		SetClientConnected( bool bIsConnected ) = 0;
 		virtual bool		IsClientConnected() = 0;
+		virtual void		SetClientStreamReady( bool bIsReady ) = 0;
+		virtual bool		IsClientStreamReady() = 0;
+
+		virtual void		IncrementOpenStreamCount() = 0;
+		virtual void		DecrementOpenStreamCount() = 0;
+		virtual bool		HasOpenStreams() = 0;
 	};
 
 public:
@@ -60,6 +66,7 @@ public:
 
 	static bool				S_IsListenerRunning();
 	static bool				S_IsClientConnected();
+	static bool				S_HasOpenStreams();
 
 	static std::string		S_GetTestCertFileName() { return sm_zTestCertFile; }
 	static std::string		S_GetTestKeyFileName() { return sm_zTestKeyFile; }

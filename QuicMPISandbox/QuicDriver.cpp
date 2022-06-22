@@ -6,6 +6,13 @@
 #include <string>
 #include <ip2string.h>
 
+#include <sstream>
+#include <thread>
+#include <vector>
+#include <inttypes.h>
+
+using namespace std::chrono_literals;
+
 QuicDriver::QuicDriver() :
 	m_MsQuic( nullptr ),
 	m_Registration( nullptr ),
@@ -15,7 +22,9 @@ QuicDriver::QuicDriver() :
 	m_ListenerStatus( QUIC_STATUS_NOT_FOUND ),
 	m_ClientStatus( QUIC_STATUS_NOT_FOUND ),
 	m_bListenerRunning( false ),
-	m_bClientConnected( false )
+	m_bClientConnected( false ),
+	m_bClientStreamReady( false ),
+	m_iOpenStreams( 0 )
 {}
 
 QuicDriver::~QuicDriver()
@@ -240,7 +249,7 @@ QuicDriver::ServerSend( HQUIC Stream )
 	SendBuffer->Buffer = (uint8_t*)SendBufferRaw + sizeof( QUIC_BUFFER );
 	SendBuffer->Length = m_SendBufferLength;
 
-	printf( "[strm][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
+	printf( "[strm-server][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -249,7 +258,6 @@ QuicDriver::ServerSend( HQUIC Stream )
 	//
 	QUIC_STATUS Status;
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_FIN, SendBuffer ) ) )
-	//if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		free( SendBufferRaw );
@@ -314,7 +322,7 @@ QuicDriver::CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnse
 		return;
 	}
 
-	printf( "[conn][%p] Connecting...\n", m_ClientConnection );
+	printf( "[conn-client][%p] Connecting...\n", m_ClientConnection );
 
 	//
 	// Start the connection to the server.
@@ -393,7 +401,7 @@ QuicDriver::ClientSend( HQUIC Connection )
 		return;
 	}
 
-	printf( "[strm][%p] Starting...\n", Stream );
+	printf( "[strm-client][%p] Starting...\n", Stream );
 
 	//
 	// Starts the bidirectional stream. By default, the peer is not notified of
@@ -422,7 +430,8 @@ QuicDriver::ClientSend( HQUIC Connection )
 	SendBuffer->Buffer = SendBufferRaw + sizeof( QUIC_BUFFER );
 	SendBuffer->Length = m_SendBufferLength;
 
-	printf( "[strm][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
+	printf( "[strm-client][%p] Sending data: %p. Size: %d. uint8_t: %p.\n", Stream, SendBuffer->Buffer, m_SendBufferLength, SendBufferRaw );
+	//printf( "[strm-client][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -438,13 +447,24 @@ QuicDriver::ClientSend( HQUIC Connection )
 	}
 }
 
+/// <summary>
+/// Uses the client-server connection that was opened.
+/// Creates new unidirectional stream, sends data, and closes it once done.
+/// </summary>
 void
-QuicDriver::ClientSend()
+QuicDriver::ClientSendData( std::string zBuffer )
 {
+	printf( __FUNCTION__ );
+	printf( "\n" );
+	if ( !m_bClientConnected )
+	{
+		const QUIC_BUFFER TestStreamBuffer = { sizeof( zBuffer ), (uint8_t*)zBuffer.c_str() };
+		printf( "Client not connected to server! Cannot send data: %s. Buffer: %p.\n", zBuffer.c_str(), TestStreamBuffer.Buffer );
+		return;
+	}
+
 	QUIC_STATUS Status;
 	HQUIC Stream = nullptr;
-	uint8_t* SendBufferRaw;
-	QUIC_BUFFER* SendBuffer;
 
 	//
 	// Create/allocate a new bidirectional stream. The stream is just allocated
@@ -457,13 +477,13 @@ QuicDriver::ClientSend()
 		return;
 	}
 
-	printf( "[strm][%p] Starting...\n", Stream );
+	printf( "[strm-client][%p] Starting...\n", Stream );
 
 	//
 	// Starts the bidirectional stream. By default, the peer is not notified of
 	// the stream being started until data is sent on the stream.
 	//
-	if ( QUIC_FAILED( Status = m_MsQuic->StreamStart( Stream, QUIC_STREAM_START_FLAG_NONE ) ) )
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamStart( Stream, QUIC_STREAM_START_FLAG_IMMEDIATE ) ) )
 	{
 		printf( "StreamStart failed, 0x%x!\n", Status );
 		m_MsQuic->StreamClose( Stream );
@@ -471,35 +491,44 @@ QuicDriver::ClientSend()
 		return;
 	}
 
-	uint32_t iSendBufferLength = 1024;
+	while ( !IsClientStreamReady() )
+	{
+		printf( "[strm-client][%p] Waiting for stream start to complete.\n", Stream );
+		std::this_thread::sleep_for( 100ms );
+	}
 
 	//
 	// Allocates and builds the buffer to send over the stream.
 	//
-	SendBufferRaw = (uint8_t*)malloc( sizeof( QUIC_BUFFER ) + iSendBufferLength );
-	if ( SendBufferRaw == nullptr )
-	{
-		printf( "SendBuffer allocation failed!\n" );
-		Status = QUIC_STATUS_OUT_OF_MEMORY;
-		ShutdownClientConnection( m_ClientConnection );
-		return;
-	}
+	//const char* pBuffer = zBuffer.c_str();
+	//size_t sBufferLength = zBuffer.length();
+	//uint8_t* pCBuffer = new uint8_t[sBufferLength];
 
-	SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
-	SendBuffer->Buffer = (uint8_t*)SendBufferRaw + sizeof( QUIC_BUFFER );
-	SendBuffer->Length = iSendBufferLength;
+	//size_t i = 0;
+	//for ( auto c = pBuffer; c != ( pBuffer + sBufferLength ); ++c, ++i )
+	//{
+	//	pCBuffer[i] = (uint8_t)( *c );
+	//}
 
-	printf( "[strm][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
+	//QUIC_BUFFER StreamBuffer = { sBufferLength, pCBuffer };
+	//printf( "[strm-client][%p] Sending data: %p. String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, pBuffer, pCBuffer );
+
+	size_t sBufferLength = zBuffer.length();
+	std::vector<uint8_t> aCBuffer( zBuffer.begin(), zBuffer.end() );
+	uint8_t* pCBuffer = &aCBuffer[0];
+
+	QUIC_BUFFER StreamBuffer = { sBufferLength, pCBuffer };
+	printf( "[strm-client][%p] Sending data: %p. Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, sBufferLength, zBuffer.c_str(), pCBuffer );
 
 	//
-	// Sends the buffer over the stream.
+	// Sends the buffer over the stream. Note the FIN flag is passed along with
+	// the buffer. This indicates this is the last buffer on the stream and the
+	// the stream is shut down (in the send direction) immediately after.
 	//
-	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer ) ) )
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, &StreamBuffer, 1, QUIC_SEND_FLAG_FIN, nullptr ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
-		free( SendBufferRaw );
 		ShutdownClientConnection( m_ClientConnection );
-		return;
 	}
 }
 

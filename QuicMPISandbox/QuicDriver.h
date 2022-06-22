@@ -19,7 +19,7 @@ public:
 	virtual void		CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnsecure, const char* pResumptionTicket ) override;
 	virtual bool		ClientLoadConfiguration( bool bUnsecure ) override;
 	virtual void		ClientSend( HQUIC Connection ) override;
-	virtual void		ClientSend() override;
+	virtual void		ClientSendData( std::string zBuffer ) override;
 
 	virtual HQUIC		GetRegistration() override { return m_Registration; }
 	virtual HQUIC		GetListenerConfiguration() override { return m_ListenerConfiguration; }
@@ -31,6 +31,13 @@ public:
 
 	virtual void		SetClientConnected( bool bIsConnected ) override { m_bClientConnected = bIsConnected; }
 	virtual bool		IsClientConnected() override { return m_bClientConnected; }
+
+	virtual void		SetClientStreamReady( bool bIsReady ) override { m_bClientStreamReady = bIsReady; }
+	virtual bool		IsClientStreamReady() override { return m_bClientStreamReady; }
+
+	virtual void		IncrementOpenStreamCount() override { m_iOpenStreams++; }
+	virtual void		DecrementOpenStreamCount() override { m_iOpenStreams--; }
+	virtual bool		HasOpenStreams() override { return m_iOpenStreams > 0; }
 
 private:
 	void				CloseListener( HQUIC Listener );
@@ -62,9 +69,9 @@ private:
 	const QUIC_BUFFER							m_Alpn = { sizeof( "sample" ) - 1, (uint8_t*)"sample" };
 
 	//
-	// The default idle timeout period (1 second) used for the protocol.
+	// The default idle timeout period (1 min) used for the protocol.
 	//
-	const uint64_t								m_IdleTimeoutMs = 1000;
+	const uint64_t								m_IdleTimeoutMs = 60000;
 
 	//
 	// The length of buffer sent over the streams in the protocol.
@@ -98,4 +105,7 @@ private:
 
 	bool										m_bListenerRunning;
 	bool										m_bClientConnected;
+
+	bool										m_bClientStreamReady;
+	int											m_iOpenStreams;
 };
