@@ -3,6 +3,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <string>
+#include <format>
 #include <vector>
 
 #include <iostream>
@@ -29,15 +30,15 @@ void MpiTest( int iNumArgs, char** azArgs )
 
 	//// Get number of processes and check only 3 processes are used
 	//int nRanks;
-	//MPI_Comm_size( MPI_COMM_WORLD, &nRanks );
+	//MPI_Comm_size( mCommunicator, &nRanks );
 	//if ( nRanks != 2 )
 	//{
 	//	printf( "This application is meant to be run with 2 processes.\n" );
-	//	MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
+	//	MPI_Abort( mCommunicator, EXIT_FAILURE );
 	//}
 
 	//int iLocalRank;
-	//MPI_Comm_rank( MPI_COMM_WORLD, &iLocalRank );
+	//MPI_Comm_rank( mCommunicator, &iLocalRank );
 
 	//Quic::S_RegisterDriver( new QuicDriver() );
 	//uint64_t sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
@@ -71,7 +72,7 @@ void MpiTest( int iNumArgs, char** azArgs )
 	//}
 
 	//// Sync up here.
-	//MPI_Barrier( MPI_COMM_WORLD );
+	//MPI_Barrier( mCommunicator );
 
 	//// Send/receive listener status:
 	//int buffer_send = bIsReceiverRank ? ( Quic::S_IsListenerRunning() ? 1 : 0 ) : 1;
@@ -81,7 +82,7 @@ void MpiTest( int iNumArgs, char** azArgs )
 	//int peer = bIsReceiverRank ? 1 : 0;
 
 	//MPI_Sendrecv( &buffer_send, 1, MPI_INT, peer, tag_send,
-	//	&buffer_recv, 1, MPI_INT, peer, tag_recv, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	//	&buffer_recv, 1, MPI_INT, peer, tag_recv, mCommunicator, MPI_STATUS_IGNORE );
 
 	//sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
 	//printf( "[%" PRIu64  "] Rank %d: Received value %d from MPI rank %d.\n", sec, iLocalRank, buffer_recv, peer );
@@ -103,7 +104,7 @@ void MpiTest( int iNumArgs, char** azArgs )
 	////int peer = bIsReceiverRank ? 1 : 0;
 
 	////MPI_Sendrecv( &buffer_send, 1, MPI_INT, peer, tag_send,
-	////	&buffer_recv, 1, MPI_INT, peer, tag_recv, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	////	&buffer_recv, 1, MPI_INT, peer, tag_recv, mCommunicator, MPI_STATUS_IGNORE );
 
 	////sec = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
 	////printf( "[%" PRIu64  "] Rank %d: Received value %d from MPI rank %d.\n", sec, iLocalRank, buffer_recv, peer );
@@ -173,7 +174,7 @@ void MpiTest( int iNumArgs, char** azArgs )
 	//		rcounts = new int[nRanks];
 	//	}
 
-	//	MPI_Gather( &iSendBufferSize, 1, MPI_INT, rcounts, 1, MPI_INT, iReceiverRank, MPI_COMM_WORLD );
+	//	MPI_Gather( &iSendBufferSize, 1, MPI_INT, rcounts, 1, MPI_INT, iReceiverRank, mCommunicator );
 
 	//	if ( bIsReceiverRank )
 	//	{
@@ -209,7 +210,7 @@ void MpiTest( int iNumArgs, char** azArgs )
 	//		printf( "RecvBufferSize: %d\n", iRecvBufferSize );
 
 	//		// Gather all buffers:
-	//		MPI_Igatherv( zBuffer.c_str(), iSendBufferSize, MPI_CHAR, rbuf, rcounts, displs, MPI_CHAR, iReceiverRank, MPI_COMM_WORLD, &gatherRequest );
+	//		MPI_Igatherv( zBuffer.c_str(), iSendBufferSize, MPI_CHAR, rbuf, rcounts, displs, MPI_CHAR, iReceiverRank, mCommunicator, &gatherRequest );
 
 	//		printf( "Wait for completion.\n" );
 	//		double							tWaitStart = MPI_Wtime();
@@ -252,7 +253,7 @@ void MpiTest( int iNumArgs, char** azArgs )
 	//	else
 	//	{
 	//		// Send buffer (non-blocking):
-	//		MPI_Igatherv( zBuffer.c_str(), iSendBufferSize, MPI_CHAR, NULL, NULL, NULL, MPI_CHAR, iReceiverRank, MPI_COMM_WORLD, &gatherRequest );
+	//		MPI_Igatherv( zBuffer.c_str(), iSendBufferSize, MPI_CHAR, NULL, NULL, NULL, MPI_CHAR, iReceiverRank, mCommunicator, &gatherRequest );
 
 	//		if ( i == ( nIterations - 1 ) )
 	//		{
@@ -282,32 +283,39 @@ void MpiTest( int iNumArgs, char** azArgs )
 	//MPI_Finalize();
 }
 
+void PrintLogLine( std::string zMsg, int iLocalRank )
+{
+	uint64_t uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+	printf( "[%" PRIu64  "] Rank %d: %s\n", uiSeconds, iLocalRank, zMsg.c_str() );
+}
+
 void RunMpiTest( int iNumArgs, char** azArgs )
 {
 	MPI_Init( &iNumArgs, &azArgs );
 
+	MPI_Comm mCommunicator = MPI_COMM_WORLD;
+
 	// Get number of processes and check only 3 processes are used
 	int nRanks;
-	MPI_Comm_size( MPI_COMM_WORLD, &nRanks );
+	MPI_Comm_size( mCommunicator, &nRanks );
 	if ( nRanks != 2 )
 	{
-		printf( "This application is meant to be run with 2 processes.\n" );
-		MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
+		PrintLogLine( "This application is meant to be run with 2 processes.", -1 );
+		MPI_Abort( mCommunicator, EXIT_FAILURE );
 	}
 
 	// Set receiver rank to 0:
 	int iReceiverRank = 0;
 	int iLocalRank;
-	MPI_Comm_rank( MPI_COMM_WORLD, &iLocalRank );
+	MPI_Comm_rank( mCommunicator, &iLocalRank );
 
-	bool									bIsReceiverRank = iLocalRank == iReceiverRank;
+	bool bIsReceiverRank = iLocalRank == iReceiverRank;
 
 	Quic::S_RegisterDriver( new QuicDriver() );
-	uint64_t uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-	printf( "[%" PRIu64  "] Rank %d: Registered Quic driver.\n", uiSeconds, iLocalRank);
+	PrintLogLine( "Registered Quic driver.", iLocalRank );
 
 	// Sync up here.
-	MPI_Barrier( MPI_COMM_WORLD );
+	MPI_Barrier( mCommunicator );
 
 	uint16_t iPort = 4477;
 
@@ -315,16 +323,14 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	char cHostName[MPI_MAX_PROCESSOR_NAME];
 	int iNameLen;
 	MPI_Get_processor_name( cHostName, &iNameLen );
-	uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-	printf( "[%" PRIu64  "] Rank %d: Hostname: %s.\n", uiSeconds, iLocalRank, cHostName);
+	PrintLogLine( std::format( "Hostname: {}.", cHostName ), iLocalRank );
 
-	// Will set this in the receiver rank:
+	// This will be set in non-receiver ranks via MPI_Bcast later:
 	char cIpAddress[INET_ADDRSTRLEN];
 
 	if ( bIsReceiverRank )
 	{
-		uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-		printf( "[%" PRIu64  "] Rank %d: Creating Quic listener...\n", uiSeconds, iLocalRank );
+		PrintLogLine( "Creating Quic listener...", iLocalRank );
 		Quic::S_CreateListener( iPort );
 
 		// TODO: Make sure listener is connected and running before syncing with other threads.
@@ -336,7 +342,6 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 			if ( elapsed.count() > 10000 ) break;
 			std::this_thread::sleep_for( 100ms );
 		}
-
 
 		// Get IP address to send to client threads.
 		// Listener is listening on all IP addresses to take the first (preferred) one.
@@ -351,79 +356,62 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 		if ( getaddrinfo( cHostName, cPort, &addrHints, &pResult ) != 0 )
 		{
-			uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-			printf( "[%" PRIu64  "] Rank %d: Could not get address info.\n", uiSeconds, iLocalRank );
-			MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
-			return;
+			PrintLogLine( "Could not get address info.", iLocalRank );
+			MPI_Abort( mCommunicator, EXIT_FAILURE );
 		}
 
 		for ( struct addrinfo* ptr = pResult; ptr != NULL; ptr = ptr->ai_next )
 		{
 			if ( ptr->ai_family == AF_INET )
 			{
-				uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-				printf( "[%" PRIu64  "] Rank %d: AF_INET (IPv4)\n", uiSeconds, iLocalRank );
+				PrintLogLine( "AF_INET (IPv4)", iLocalRank );
 				struct sockaddr_in* pSockAddrIpv4 = (struct sockaddr_in*)ptr->ai_addr;
 				IN_ADDR ipAddress = pSockAddrIpv4->sin_addr;
 				inet_ntop( AF_INET, &ipAddress, cIpAddress, INET_ADDRSTRLEN );
 
-				uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-				printf( "[%" PRIu64  "] Rank %d: \tIPv4 address %s\n", uiSeconds, iLocalRank, cIpAddress );
+				PrintLogLine( std::format( "\tIPv4 address {}", cIpAddress ), iLocalRank );
 				break;
 			}
 		}
 
-		uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-		printf( "[%" PRIu64  "] Rank %d: IP Address is %s...\n", uiSeconds, iLocalRank, cIpAddress );
+		PrintLogLine( std::format( "Listening on IP Address {}", cIpAddress ), iLocalRank );
 	}
 	else
 	{
-		uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-		printf( "[%" PRIu64  "] Rank %d: Waiting for rank 0 to create Quic listener...\n", uiSeconds, iLocalRank );
+		PrintLogLine( "Waiting for rank 0 to create Quic listener...", iLocalRank );
 	}
 
-	// Sync up here.
-	MPI_Barrier( MPI_COMM_WORLD );
-
-	// Send/receive listener status:
-	int iSendBuffer = bIsReceiverRank ? ( Quic::S_IsListenerRunning() ? 1 : 0 ) : 1;
-	int iRecvBuffer;
-	int iSendTag = 0;
-	int iRecvTag = iSendTag;
-	int iTargetRank = bIsReceiverRank ? iReceiverRank + 1 : iReceiverRank; // This won't work with more than 2 ranks.
-
-	MPI_Sendrecv( &iSendBuffer, 1, MPI_INT, iTargetRank, iSendTag,
-		&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
-
+	// Broadcast receiver status:
+	int iBuffer = 0;
 	if ( bIsReceiverRank )
 	{
-		if ( !Quic::S_IsListenerRunning() )
-		{
-			MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
-			return;
-		}
+		iBuffer = Quic::S_IsListenerRunning() ? 1 : 0;
 	}
-	else
+	MPI_Bcast( &iBuffer, 1, MPI_INT, iReceiverRank, mCommunicator );
+
+	if ( !bIsReceiverRank )
 	{
-		uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-		printf( "[%" PRIu64  "] Rank %d: Received value %d from MPI rank %d.\n", uiSeconds, iLocalRank, iRecvBuffer, iTargetRank );
+		PrintLogLine( std::format("Received status {} from receiver rank {}.", iBuffer, iReceiverRank ), iLocalRank );
 	}
 
-	// TODO: Send IP address and port information for non-writer threads to know what the client is connecting to.
-	char cIpAddress_recv[INET_ADDRSTRLEN];
-	MPI_Sendrecv( &cIpAddress, INET_ADDRSTRLEN, MPI_INT, iTargetRank, iSendTag,
-		&cIpAddress_recv, INET_ADDRSTRLEN, MPI_INT, iTargetRank, iRecvTag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	if ( iBuffer == 0 )
+	{
+		PrintLogLine( "Receiver rank not set up for receiving messages, aborting run.", iLocalRank );
+		return;
+	}
+
+	// Broadcast IP address and port information for non-writer threads to know what the client is connecting to.
+	MPI_Bcast( &cIpAddress, INET_ADDRSTRLEN, MPI_INT, iReceiverRank, mCommunicator );
 
 	// Create client with the IP address information:
 	if ( !bIsReceiverRank )
 	{
-		printf( "[%" PRIu64  "] Rank %d: Received value %s from MPI rank %d.\n", uiSeconds, iLocalRank, cIpAddress_recv, iTargetRank );
-		if ( iRecvBuffer == 1 )
+		PrintLogLine( std::format( "Received value {} from reciever rank {}.", cIpAddress, iReceiverRank ), iLocalRank );
+		if ( iBuffer == 1 )
 		{
 			std::this_thread::sleep_for( 1000ms );
-			uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-			printf( "[%" PRIu64  "] Rank %d: Creating Quic client, connecting to %s on port %d...\n", uiSeconds, iLocalRank, cIpAddress_recv, iPort );
-			Quic::S_CreateClient( cIpAddress_recv, iPort );
+			PrintLogLine( std::format( "Creating Quic client, connecting to {} on port {}...", cIpAddress, iPort ), iLocalRank );
+			Quic::S_CreateClient( cIpAddress, iPort );
 		}
 	}
 
@@ -431,8 +419,7 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 	if ( !bIsReceiverRank )
 	{
-		uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-		printf( "[%" PRIu64  "] Rank %d: Sending data from client to listener.\n", uiSeconds, iLocalRank );
+		PrintLogLine( "Sending data from client to listener.", iLocalRank );
 
 		int								iIterations = 1;
 		int								nDataSize = 10;
@@ -459,7 +446,7 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	//printf( "[%" PRIu64  "] Rank %d: Destroying Quic driver...\n", uiSeconds, iLocalRank );
 	//Quic::S_DestroyDriver();
 
-	printf( "[%" PRIu64  "] Rank %d: Open streams: %i.\n", uiSeconds, iLocalRank, Quic::S_HasOpenStreams() ? 1 : 0 );
+	PrintLogLine( std::format( "Open streams: {}.", Quic::S_HasOpenStreams() ? 1 : 0 ), iLocalRank );
 	//int iCount = 0;
 	//while ( Quic::S_HasOpenStreams() )
 	//{
@@ -471,7 +458,7 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 	//iSendBuffer = Quic::S_HasOpenStreams() ? 1 : 0;
 	//MPI_Sendrecv( &iSendBuffer, 1, MPI_INT, iTargetRank, iSendTag,
-	//	&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	//	&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, mCommunicator, MPI_STATUS_IGNORE );
 
 	//while ( iRecvBuffer == 1 || iSendBuffer == 1 )
 	//{
@@ -480,11 +467,11 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	//	std::this_thread::sleep_for( 100ms );
 	//	iSendBuffer = Quic::S_HasOpenStreams() ? 1 : 0;
 	//	MPI_Sendrecv( &iSendBuffer, 1, MPI_INT, iTargetRank, iSendTag,
-	//		&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	//		&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, mCommunicator, MPI_STATUS_IGNORE );
 	//}
 
 	// Sync up here.
-	MPI_Barrier( MPI_COMM_WORLD );
+	MPI_Barrier( mCommunicator );
 
 	MPI_Finalize();
 }
