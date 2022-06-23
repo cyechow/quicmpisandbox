@@ -97,6 +97,7 @@ private:
 	// QUIC layer settings.
 	//
 	HQUIC										m_ListenerConfiguration;
+	HQUIC										m_Listener;
 	HQUIC										m_ClientConfiguration;
 	HQUIC										m_ClientConnection;
 

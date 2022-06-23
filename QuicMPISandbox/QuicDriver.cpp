@@ -17,6 +17,7 @@ QuicDriver::QuicDriver() :
 	m_MsQuic( nullptr ),
 	m_Registration( nullptr ),
 	m_ListenerConfiguration( nullptr ),
+	m_Listener( nullptr ),
 	m_ClientConfiguration( nullptr ),
 	m_ClientConnection( nullptr ),
 	m_ListenerStatus( QUIC_STATUS_NOT_FOUND ),
@@ -59,6 +60,14 @@ QuicDriver::Fini()
 {
 	if ( m_MsQuic != nullptr )
 	{
+		if ( m_ClientConnection != nullptr )
+		{
+			ShutdownClientConnection( m_ClientConnection );
+		}
+		if ( m_Listener != nullptr )
+		{
+			CloseListener( m_Listener );
+		}
 		if ( m_ListenerConfiguration != nullptr )
 		{
 			m_MsQuic->ConfigurationClose( m_ListenerConfiguration );
@@ -82,7 +91,6 @@ QuicDriver::Fini()
 void
 QuicDriver::CreateListener( uint16_t iPort )
 {
-	HQUIC Listener = nullptr;
 	//
 	// Configures the address used for the listener to listen on all IP
 	// addresses and the given UDP port.
@@ -100,10 +108,10 @@ QuicDriver::CreateListener( uint16_t iPort )
 	//
 	// Create/allocate a new listener object.
 	//
-	if ( QUIC_FAILED( m_ListenerStatus = GetMsQuic()->ListenerOpen( GetRegistration(), Quic::S_ServerListenerCallback, nullptr, &Listener ) ) )
+	if ( QUIC_FAILED( m_ListenerStatus = GetMsQuic()->ListenerOpen( GetRegistration(), Quic::S_ServerListenerCallback, nullptr, &m_Listener ) ) )
 	{
 		printf( "ListenerOpen failed, 0x%x!\n", m_ListenerStatus );
-		CloseListener( Listener );
+		CloseListener( m_Listener );
 		Fini();
 		return;
 	}
@@ -111,10 +119,10 @@ QuicDriver::CreateListener( uint16_t iPort )
 	//
 	// Starts listening for incoming connections.
 	//
-	if ( QUIC_FAILED( m_ListenerStatus = GetMsQuic()->ListenerStart( Listener, &m_Alpn, 1, &Address ) ) )
+	if ( QUIC_FAILED( m_ListenerStatus = GetMsQuic()->ListenerStart( m_Listener, &m_Alpn, 1, &Address ) ) )
 	{
 		printf( "ListenerStart failed, 0x%x!\n", m_ListenerStatus );
-		CloseListener( Listener );
+		CloseListener( m_Listener );
 		Fini();
 		return;
 	}
@@ -517,7 +525,8 @@ QuicDriver::ClientSendData( std::string zBuffer )
 	std::vector<uint8_t> aCBuffer( zBuffer.begin(), zBuffer.end() );
 	uint8_t* pCBuffer = &aCBuffer[0];
 
-	QUIC_BUFFER StreamBuffer = { sBufferLength, pCBuffer };
+	// TODO: Is there a way around this size_t to uint32_t conversion...
+	QUIC_BUFFER StreamBuffer = { static_cast<uint32_t>( sBufferLength ), pCBuffer };
 	printf( "[strm-client][%p] Sending data: %p. Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, sBufferLength, zBuffer.c_str(), pCBuffer );
 
 	//

@@ -382,19 +382,19 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	}
 
 	// Broadcast receiver status:
-	int iBuffer = 0;
+	int iReceiverRunningStatus = 0;
 	if ( bIsReceiverRank )
 	{
-		iBuffer = Quic::S_IsListenerRunning() ? 1 : 0;
+		iReceiverRunningStatus = Quic::S_IsListenerRunning() ? 1 : 0;
 	}
-	MPI_Bcast( &iBuffer, 1, MPI_INT, iReceiverRank, mCommunicator );
+	MPI_Bcast( &iReceiverRunningStatus, 1, MPI_INT, iReceiverRank, mCommunicator );
 
 	if ( !bIsReceiverRank )
 	{
-		PrintLogLine( std::format("Received status {} from receiver rank {}.", iBuffer, iReceiverRank ), iLocalRank );
+		PrintLogLine( std::format("Received status {} from receiver rank {}.", iReceiverRunningStatus, iReceiverRank ), iLocalRank );
 	}
 
-	if ( iBuffer == 0 )
+	if ( iReceiverRunningStatus == 0 )
 	{
 		PrintLogLine( "Receiver rank not set up for receiving messages, aborting run.", iLocalRank );
 		return;
@@ -406,16 +406,13 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	// Create client with the IP address information:
 	if ( !bIsReceiverRank )
 	{
-		PrintLogLine( std::format( "Received value {} from reciever rank {}.", cIpAddress, iReceiverRank ), iLocalRank );
-		if ( iBuffer == 1 )
-		{
-			std::this_thread::sleep_for( 1000ms );
-			PrintLogLine( std::format( "Creating Quic client, connecting to {} on port {}...", cIpAddress, iPort ), iLocalRank );
-			Quic::S_CreateClient( cIpAddress, iPort );
-		}
+		PrintLogLine( std::format( "Creating Quic client, connecting to {} on port {}...", cIpAddress, iPort ), iLocalRank );
+		Quic::S_CreateClient( cIpAddress, iPort );
 	}
 
-	std::this_thread::sleep_for( 5000ms );
+	// TODO: Set up something to check whether listener connection has finished starting and streams can be created.
+	// 200ms seems like enough time for now - this might vary between machines.
+	std::this_thread::sleep_for( 200ms );
 
 	if ( !bIsReceiverRank )
 	{
@@ -442,36 +439,53 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 		}
 	}
 
-	//uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-	//printf( "[%" PRIu64  "] Rank %d: Destroying Quic driver...\n", uiSeconds, iLocalRank );
-	//Quic::S_DestroyDriver();
-
 	PrintLogLine( std::format( "Open streams: {}.", Quic::S_HasOpenStreams() ? 1 : 0 ), iLocalRank );
-	//int iCount = 0;
-	//while ( Quic::S_HasOpenStreams() )
-	//{
-	//	if ( iCount > 100 )break;
-	//	printf( "[%" PRIu64  "] Rank %d: Quic still running, waiting for it to close.\n", uiSeconds, iLocalRank );
-	//	std::this_thread::sleep_for( 100ms );
-	//	iCount++;
-	//}
 
-	//iSendBuffer = Quic::S_HasOpenStreams() ? 1 : 0;
-	//MPI_Sendrecv( &iSendBuffer, 1, MPI_INT, iTargetRank, iSendTag,
-	//	&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, mCommunicator, MPI_STATUS_IGNORE );
+	// All ranks need to remain open while any other ranks are still sending or processing data.
+	// Receiver rank will be one to figure out whether all ranks are waiting.
+	bool bWait = true;
+	do
+	{
+		// Receiver rank will gather open stream statuses from all other ranks:
+		int* rcounts = NULL;
+		int iStatusBuffer = Quic::S_HasOpenStreams() ? 1 : 0;
 
-	//while ( iRecvBuffer == 1 || iSendBuffer == 1 )
-	//{
-	//	uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
-	//	printf( "[%" PRIu64  "] Rank %d: Quic still running, waiting for it to close.\n", uiSeconds, iLocalRank );
-	//	std::this_thread::sleep_for( 100ms );
-	//	iSendBuffer = Quic::S_HasOpenStreams() ? 1 : 0;
-	//	MPI_Sendrecv( &iSendBuffer, 1, MPI_INT, iTargetRank, iSendTag,
-	//		&iRecvBuffer, 1, MPI_INT, iTargetRank, iRecvTag, mCommunicator, MPI_STATUS_IGNORE );
-	//}
+		if ( bIsReceiverRank )
+		{
+			rcounts = new int[nRanks];
+		}
+		MPI_Gather( &iStatusBuffer, 1, MPI_INT, rcounts, 1, MPI_INT, iReceiverRank, mCommunicator );
 
-	// Sync up here.
-	MPI_Barrier( mCommunicator );
+		bWait = Quic::S_HasOpenStreams();
+		if ( bIsReceiverRank && !bWait )
+		{
+			// Receiver rank will also wait if any other ranks are sending data .
+			bWait = false;
+			for ( int i = 1; i < nRanks; ++i )
+			{
+				if ( rcounts[i] != 0 ) bWait = true;
+				PrintLogLine( std::format( "Received status from rank {}: {}.", i, rcounts[i] ), iLocalRank );
+			}
+		}
+
+		// Broadcast whether receiver rank is waiting or not:
+		int iReceiverWaitStatus;
+		if ( bIsReceiverRank ) iReceiverWaitStatus = bWait ? 1 : 0;
+		MPI_Bcast( &iReceiverWaitStatus, 1, MPI_INT, iReceiverRank, mCommunicator );
+
+		if ( !bIsReceiverRank )
+		{
+			bWait = iReceiverWaitStatus == 1;
+			PrintLogLine( std::format( "Receiver wait status: {}.", iReceiverWaitStatus ), iLocalRank );
+		}
+
+		if ( bWait ) PrintLogLine( "Waiting for data sending to finish.", iLocalRank );
+
+		std::this_thread::sleep_for( 100ms );
+	} while ( bWait );
+
+	PrintLogLine( "Destroying Quic driver...", iLocalRank );
+	Quic::S_DestroyDriver();
 
 	MPI_Finalize();
 }

@@ -26,14 +26,15 @@ Reasons for exploring MsQuic instead of just using MPI to pass data between rank
 * The specs of the machine(s) running the application isn't under my control so this has to work regardless of hardware.
 
 ## TODO
-* Figure out how to make the program wait until all other ranks are done with their Quic connection & streams.
+* ~~Figure out how to make the program wait until all other ranks are done with their Quic connection & streams.~~
 * Set up the sending of test data
   * Currently sends but program appears to sometimes exit before the receiver rank can process it.
   * Need to figure out conversion from char* to uint8_t* and back again. Uncertain if something happens with the buffer during the sending process.
 * Figure out a better way to create testing SSL certificates other than adding to repository.
 * Clean up artifacts (.dll & .pem files) on project/solution clean.
-* Centralize the logging s.t. timestamp and rank # are added with each log.
-* Add in an iterative MPI structure used in the actual simulations (see [stack overflow question](https://stackoverflow.com/questions/71800790/mpi-igatherv-received-buffers-arent-filled-with-larger-amounts-of-data-sent)).
+* ~~Centralize the logging s.t. timestamp and rank # are added with each log.~~
+* Add in an iterative MPI structure used in the actual simulations (see [stack overflow question](https://stackoverflow.com/questions/71800790/mpi-igatherv-received-buffers-arent-filled-with-larger-amounts-of-data-sent
+* Set up something to check whether listener connection has finished starting and streams can be created.
 
 ## License
 * Code from MsQuic is open sourced under the MIT license, see [here](https://github.com/microsoft/msquic/blob/main/LICENSE) for full license.
