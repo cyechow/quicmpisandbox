@@ -53,6 +53,8 @@ public:
 		virtual void		IncrementOpenStreamCount() = 0;
 		virtual void		DecrementOpenStreamCount() = 0;
 		virtual bool		HasOpenStreams() = 0;
+
+		virtual void		ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers ) = 0;
 	};
 
 public:

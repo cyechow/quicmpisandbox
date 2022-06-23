@@ -414,14 +414,17 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	// 200ms seems like enough time for now - this might vary between machines.
 	std::this_thread::sleep_for( 200ms );
 
-	if ( !bIsReceiverRank )
+	int iIterations = 1;
+	int nDataSize = 10;
+	for ( size_t i = 0; i < iIterations; ++i )
 	{
-		PrintLogLine( "Sending data from client to listener.", iLocalRank );
+		// do work
+		std::this_thread::sleep_for( 200ms );
 
-		int								iIterations = 1;
-		int								nDataSize = 10;
-		for ( size_t i = 0; i < iIterations; ++i )
+		// aggregate data
+		if ( !bIsReceiverRank )
 		{
+			PrintLogLine( "Sending data from client to listener.", iLocalRank );
 			std::stringstream				ssData;
 			ssData << "testing";
 			//int								my_value = int( i + 1 ) * ( 10 + iLocalRank );
@@ -436,6 +439,10 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 			//	}
 			//}
 			Quic::S_GetDriver()->ClientSendData( ssData.str() );
+		}
+		else
+		{
+			PrintLogLine( "Storing data.", iLocalRank );
 		}
 	}
 
@@ -466,6 +473,8 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 				if ( rcounts[i] != 0 ) bWait = true;
 				PrintLogLine( std::format( "Received status from rank {}: {}.", i, rcounts[i] ), iLocalRank );
 			}
+
+			delete rcounts;
 		}
 
 		// Broadcast whether receiver rank is waiting or not:

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sstream>
+#include <vector>
 
 Quic::Driver*			Quic::sm_pDriver = NULL;
 std::string				Quic::sm_zTestCertFile = "mpicertopen.pem";
@@ -96,23 +97,25 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// Data was received from the peer on the stream.
 		//
 		printf( "[strm-server][%p] Data received. Buffers length: %d. BufferCount: %d. Absolute Offset: %I64d. Total buffer length: %I64d.\n", Stream, Event->RECEIVE.Buffers->Length, Event->RECEIVE.BufferCount, Event->RECEIVE.AbsoluteOffset, Event->RECEIVE.TotalBufferLength );
+		printf( "[strm-server][%p] Cancelled: %d\n", Stream, Event->SEND_COMPLETE.Canceled );
 		for ( uint32_t i = 0; i < Event->RECEIVE.BufferCount; ++i )
 		{
-			char* pData = reinterpret_cast<char*>( Event->RECEIVE.Buffers[i].Buffer );
-			//uint8_t* pCBuffer = Event->RECEIVE.Buffers[i].Buffer;
-			//size_t sBufferLength = Event->RECEIVE.Buffers[i].Length;
+			uint8_t* pCBuffer = Event->RECEIVE.Buffers[i].Buffer;
+			size_t sBufferLength = Event->RECEIVE.Buffers[i].Length;
 
-			//char* pData = new char[sBufferLength];
+			// Make a copy:
+			std::vector<uint8_t> aCBuffer( pCBuffer, pCBuffer + sBufferLength );
+			std::vector<char> apData;
+			for ( size_t c = 0; c < sBufferLength; ++c )
+			{
+				apData.push_back( aCBuffer[c] );
+				printf( "[strm-server][%p] Data received, value at position %I64d: %d.\n", Stream, c, aCBuffer[c] );
+			}
 
-			//size_t c = 0;
-			//for ( auto u = pCBuffer; u != ( pCBuffer + sBufferLength ); ++u, ++c )
-			//{
-			//	pData[c] = (char)( *u );
-			//}
+			std::stringstream sstream;
+			sstream.write( &apData[0], sBufferLength );
 
-			//std::stringstream sstream;
-			//sstream.write( pData, sBufferLength );
-			printf( "[strm-server][%p] Data received: %p\n", Stream, pData );
+			printf( "[strm-server][%p] Data received: %p. sstream: %s\n", Stream, pCBuffer, sstream.str().c_str() );
 		}
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:

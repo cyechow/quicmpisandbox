@@ -21,6 +21,8 @@ public:
 	virtual void		ClientSend( HQUIC Connection ) override;
 	virtual void		ClientSendData( std::string zBuffer ) override;
 
+	virtual void		ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers ) override;
+
 	virtual HQUIC		GetRegistration() override { return m_Registration; }
 	virtual HQUIC		GetListenerConfiguration() override { return m_ListenerConfiguration; }
 	virtual const		QUIC_API_TABLE* GetMsQuic() override { return m_MsQuic; }

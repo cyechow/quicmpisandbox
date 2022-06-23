@@ -507,27 +507,19 @@ QuicDriver::ClientSendData( std::string zBuffer )
 
 	//
 	// Allocates and builds the buffer to send over the stream.
+	// TODO: Not sure if there's a better way of creating a uint8_t*
 	//
-	//const char* pBuffer = zBuffer.c_str();
-	//size_t sBufferLength = zBuffer.length();
-	//uint8_t* pCBuffer = new uint8_t[sBufferLength];
-
-	//size_t i = 0;
-	//for ( auto c = pBuffer; c != ( pBuffer + sBufferLength ); ++c, ++i )
-	//{
-	//	pCBuffer[i] = (uint8_t)( *c );
-	//}
-
-	//QUIC_BUFFER StreamBuffer = { sBufferLength, pCBuffer };
-	//printf( "[strm-client][%p] Sending data: %p. String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, pBuffer, pCBuffer );
-
 	size_t sBufferLength = zBuffer.length();
 	std::vector<uint8_t> aCBuffer( zBuffer.begin(), zBuffer.end() );
 	uint8_t* pCBuffer = &aCBuffer[0];
+	for ( uint8_t c : aCBuffer )
+	{
+		printf( "[strm-client][%p] Sending data, value: %d.\n", Stream, c );
+	}
 
 	// TODO: Is there a way around this size_t to uint32_t conversion...
 	QUIC_BUFFER StreamBuffer = { static_cast<uint32_t>( sBufferLength ), pCBuffer };
-	printf( "[strm-client][%p] Sending data: %p. Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, sBufferLength, zBuffer.c_str(), pCBuffer );
+	printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, aCBuffer.size(), sBufferLength, zBuffer.c_str(), pCBuffer );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -539,6 +531,12 @@ QuicDriver::ClientSendData( std::string zBuffer )
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		ShutdownClientConnection( m_ClientConnection );
 	}
+}
+
+void
+QuicDriver::ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers )
+{
+	//TODO, take from server stream callback once confirmed to work.
 }
 
 void
