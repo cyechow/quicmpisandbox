@@ -512,6 +512,12 @@ QuicDriver::ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers )
 		std::stringstream sstream;
 		sstream.write( (char*)pCBuffer, sBufferLength );
 
+		// TEST
+		int iTestVal;
+		sstream.read( reinterpret_cast<char*>( &iTestVal ), sizeof( int ) );
+		printf( "First value: %d.\n", iTestVal );
+		// ENDTEST
+
 		printf( "Data received: %p. sstream: %s\n", pCBuffer, sstream.str().c_str() );
 	}
 }
