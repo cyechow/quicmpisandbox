@@ -25,16 +25,26 @@ Reasons for exploring MsQuic instead of just using MPI to pass data between rank
 * The data per rank that needs to be passed to the writer will definitely exceed 4mb, minimum will be 5mb.
 * The specs of the machine(s) running the application isn't under my control so this has to work regardless of hardware.
 
+Data being sent via `StreamSend` must be allocated on the heap and freed only after `QUIC_STREAM_EVENT_SEND_COMPLETE` is received in the stream callback otherwise there will be race conditions with the data being freed before it's fully sent.
+I'm handling this by passing in a DataPacket pointer into the context which is the `Event->SEND_COMPLETE.ClientContext` accessible when that send complete event is raised.
+
 ## TODO
 * ~~Figure out how to make the program wait until all other ranks are done with their Quic connection & streams.~~
 * Set up the sending of test data
-  * Currently sends but program appears to sometimes exit before the receiver rank can process it.
-  * Need to figure out conversion from char* to uint8_t* and back again. Uncertain if something happens with the buffer during the sending process.
+  * ~~Currently sends but program appears to sometimes exit before the receiver rank can process it.~~
+  * ~~Need to figure out conversion from char* to uint8_t* and back again. Uncertain if something happens with the buffer during the sending process.~~
+  * Test data consisting of various ints, floats, and chars injected into a std::stringstream.
 * Figure out a better way to create testing SSL certificates other than adding to repository.
 * Clean up artifacts (.dll & .pem files) on project/solution clean.
 * ~~Centralize the logging s.t. timestamp and rank # are added with each log.~~
-* Add in an iterative MPI structure used in the actual simulations (see [stack overflow question](https://stackoverflow.com/questions/71800790/mpi-igatherv-received-buffers-arent-filled-with-larger-amounts-of-data-sent
+* ~~Add in an iterative MPI structure used in the actual simulations (see [stack overflow question](https://stackoverflow.com/questions/71800790/mpi-igatherv-received-buffers-arent-filled-with-larger-amounts-of-data-sent)~~
 * Set up something to check whether listener connection has finished starting and streams can be created.
+* Add storage to local txt file from the receiver rank as part of the incoming data processing, also include results from the receiver rank itself.
+* Add timing mechanisms to check:
+  * Time taken to send.
+  * Time taken between sending and receiving.
+  * Time taken to process the data.
+  * Time taken to wait for all streams to close.
 
 ## License
 * Code from MsQuic is open sourced under the MIT license, see [here](https://github.com/microsoft/msquic/blob/main/LICENSE) for full license.

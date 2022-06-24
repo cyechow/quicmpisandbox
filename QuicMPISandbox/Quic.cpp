@@ -92,7 +92,7 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// A previous StreamSend call has completed, and the context is being
 		// returned back to the app.
 		//
-		free( Event->SEND_COMPLETE.ClientContext );
+		delete Event->SEND_COMPLETE.ClientContext;
 		printf( "[strm-server][%p] Data sent\n", Stream );
 		break;
 	case QUIC_STREAM_EVENT_RECEIVE:
@@ -100,38 +100,10 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// Data was received from the peer on the stream.
 		//
 
-		//uint8_t* Dest = (uint8_t*)&Context->ResponseSize;
-		//uint64_t Offset = Event->RECEIVE.AbsoluteOffset;
-		//for ( uint32_t i = 0; Offset < sizeof( uint64_t ) && i < Event->RECEIVE.BufferCount; ++i )
-		//{
-		//	uint32_t Length = CXPLAT_MIN( (uint32_t)( sizeof( uint64_t ) - Offset ), Event->RECEIVE.Buffers[i].Length );
-		//	memcpy( Dest + Offset, Event->RECEIVE.Buffers[i].Buffer, Length );
-		//	Offset += Length;
-		//}
-
 		printf( "[strm-server][%p] Data received. Buffers length: %d. BufferCount: %d. Absolute Offset: %I64d. Total buffer length: %I64d.\n", Stream, Event->RECEIVE.Buffers->Length, Event->RECEIVE.BufferCount, Event->RECEIVE.AbsoluteOffset, Event->RECEIVE.TotalBufferLength );
-		printf( "[strm-server][%p] Cancelled: %d\n", Stream, Event->SEND_COMPLETE.Canceled );
-		for ( uint32_t i = 0; i < Event->RECEIVE.BufferCount; ++i )
+		if ( S_HasDriver() )
 		{
-			uint8_t* pCBuffer = Event->RECEIVE.Buffers[i].Buffer;
-			size_t sBufferLength = Event->RECEIVE.Buffers[i].Length;
-
-			// Make a copy:
-			std::vector<uint8_t> aCBuffer( pCBuffer, pCBuffer + sBufferLength );
-			std::vector<char> apData;
-			int iCount = 0;
-			for ( auto c : aCBuffer )
-			//for ( size_t c = 0; c < sBufferLength; ++c )
-			{
-				apData.push_back( c );
-				//printf( "[strm-server][%p] Data received, value at position %i: %d.\n", Stream, iCount, c );
-				iCount++;
-			}
-
-			std::stringstream sstream;
-			sstream.write( &apData[0], sBufferLength );
-
-			printf( "[strm-server][%p] Data received: %p. sstream: %s\n", Stream, pCBuffer, sstream.str().c_str() );
+			S_GetDriver()->ProcessData( Event->RECEIVE.BufferCount, Event->RECEIVE.Buffers );
 		}
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
@@ -276,7 +248,7 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// A previous StreamSend call has completed, and the context is being
 		// returned back to the app.
 		//
-		free( Event->SEND_COMPLETE.ClientContext );
+		delete Event->SEND_COMPLETE.ClientContext;
 		printf( "[strm-client][%p] Data sent\n", Stream );
 		break;
 	case QUIC_STREAM_EVENT_RECEIVE:
@@ -284,6 +256,10 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// Data was received from the peer on the stream.
 		//
 		printf( "[strm-client][%p] Data received: %p\n", Stream, Event->RECEIVE.Buffers->Buffer );
+		if ( S_HasDriver() )
+		{
+			S_GetDriver()->ProcessData( Event->RECEIVE.BufferCount, Event->RECEIVE.Buffers );
+		}
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
 		//
@@ -374,11 +350,11 @@ Quic::S_ClientConnectionCallback( HQUIC Connection, void*, QUIC_CONNECTION_EVENT
 		// received from the server.
 		//
 		printf( "[conn-client][%p] Resumption ticket received (%u bytes):\n", Connection, Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength );
-		for ( uint32_t i = 0; i < Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength; i++ )
-		{
-			printf( "%.2X", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i] );
-		}
-		printf( "\n" );
+		//for ( uint32_t i = 0; i < Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicketLength; i++ )
+		//{
+		//	printf( "%.2X", (uint8_t)Event->RESUMPTION_TICKET_RECEIVED.ResumptionTicket[i] );
+		//}
+		//printf( "\n" );
 		S_GetDriver()->SetClientConnected( true );
 		break;
 	default:

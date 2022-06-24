@@ -246,18 +246,9 @@ QuicDriver::ServerSend( HQUIC Stream )
 	//
 	// Allocates and builds the buffer to send over the stream.
 	//
-	auto SendBufferRaw = malloc( sizeof( QUIC_BUFFER ) + m_SendBufferLength );
-	if ( SendBufferRaw == nullptr )
-	{
-		printf( "SendBuffer allocation failed!\n" );
-		m_MsQuic->StreamShutdown( Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0 );
-		return;
-	}
-	auto SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
-	SendBuffer->Buffer = (uint8_t*)SendBufferRaw + sizeof( QUIC_BUFFER );
-	SendBuffer->Length = m_SendBufferLength;
+	DataPacket* pData = new DataPacket( "Server sending test data" );
 
-	printf( "[strm-server][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
+	printf( "[strm-server][%p] Sending data: %p\n", Stream, pData->GetCBuffer() );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -265,10 +256,10 @@ QuicDriver::ServerSend( HQUIC Stream )
 	// the stream is shut down (in the send direction) immediately after.
 	//
 	QUIC_STATUS Status;
-	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_FIN, SendBuffer ) ) )
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, pData->GetQuicBuffer(), pData->GetQuicBufferCount(), QUIC_SEND_FLAG_FIN, pData ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
-		free( SendBufferRaw );
+		delete pData;
 		m_MsQuic->StreamShutdown( Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0 );
 	}
 }
@@ -395,8 +386,6 @@ QuicDriver::ClientSend( HQUIC Connection )
 {
 	QUIC_STATUS Status;
 	HQUIC Stream = nullptr;
-	uint8_t* SendBufferRaw;
-	QUIC_BUFFER* SendBuffer;
 
 	//
 	// Create/allocate a new bidirectional stream. The stream is just allocated
@@ -426,30 +415,19 @@ QuicDriver::ClientSend( HQUIC Connection )
 	//
 	// Allocates and builds the buffer to send over the stream.
 	//
-	SendBufferRaw = (uint8_t*)malloc( sizeof( QUIC_BUFFER ) + m_SendBufferLength );
-	if ( SendBufferRaw == nullptr )
-	{
-		printf( "SendBuffer allocation failed!\n" );
-		Status = QUIC_STATUS_OUT_OF_MEMORY;
-		ShutdownClientConnection( Connection );
-		return;
-	}
-	SendBuffer = (QUIC_BUFFER*)SendBufferRaw;
-	SendBuffer->Buffer = SendBufferRaw + sizeof( QUIC_BUFFER );
-	SendBuffer->Length = m_SendBufferLength;
+	DataPacket* pData = new DataPacket( "Client sending test data" );
 
-	printf( "[strm-client][%p] Sending data: %p. Size: %d. uint8_t: %p.\n", Stream, SendBuffer->Buffer, m_SendBufferLength, SendBufferRaw );
-	//printf( "[strm-client][%p] Sending data: %p\n", Stream, SendBuffer->Buffer );
+	printf( "[strm-server][%p] Sending data: %p\n", Stream, pData->GetCBuffer() );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
 	// the buffer. This indicates this is the last buffer on the stream and the
 	// the stream is shut down (in the send direction) immediately after.
 	//
-	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, SendBuffer, 1, QUIC_SEND_FLAG_FIN, SendBuffer ) ) )
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, pData->GetQuicBuffer(), pData->GetQuicBufferCount(), QUIC_SEND_FLAG_FIN, pData ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
-		free( SendBufferRaw );
+		delete pData;
 		ShutdownClientConnection( Connection );
 		return;
 	}
@@ -462,11 +440,9 @@ QuicDriver::ClientSend( HQUIC Connection )
 void
 QuicDriver::ClientSendData( const std::string zDataBuffer )
 {
-	printf( __FUNCTION__ );
-	printf( "\n" );
 	if ( !m_bClientConnected )
 	{
-		printf( "Client not connected to server! Cannot send data: %s..\n", zDataBuffer );
+		printf( "Client not connected to server! Cannot send data\n" );
 		return;
 	}
 
@@ -506,42 +482,11 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 
 	//
 	// Allocates and builds the buffer to send over the stream.
-	// TODO: Not sure if there's a better way of creating a uint8_t*
+	// Create new heap-allocated data packet.
 	//
-	//size_t sBufferLength = zBuffer.length();
-	//std::vector<uint8_t> aCBuffer( zBuffer.begin(), zBuffer.end() );
-	//uint8_t* pCBuffer = &aCBuffer[0]; // Pointer to the address of the first value in vector.
-	//for ( uint8_t c : aCBuffer )
-	//{
-	//	printf( "[strm-client][%p] Sending data, value: %d.\n", Stream, c );
-	//}
-
-	//uint8_t RawBuffer[] = "testing";
-	//for ( auto c : RawBuffer )
-	//{
-	//	printf( "[strm-client][%p] uint8_t array value: %c.\n", Stream, c );
-	//}
-
-	//printf( "[strm-client][%p] Creating char array of size: %i, copying contents of string buffer into it.\n", Stream, (int)( sizeof( zBuffer ) + 1 ) );
-	//char aBuffer[8];
-	//strcpy_s( aBuffer, 8, zBuffer.c_str() );
-
-	//for ( auto c : aBuffer )
-	//{
-	//	printf( "[strm-client][%p] Char array value: %c.\n", Stream, c );
-	//}
-
-	// TODO: Is there a way around this size_t to uint32_t conversion...
-	//QUIC_BUFFER StreamBuffer = { static_cast<uint32_t>( sBufferLength ), pCBuffer };
-	//QUIC_BUFFER StreamBuffer = { sizeof(aBuffer) - 1, (uint8_t*)aBuffer };
-	//QUIC_BUFFER StreamBuffer = { sizeof( RawBuffer ), RawBuffer };
-	//QUIC_BUFFER StreamBuffer = { pData->GetBufferSize(), pData->GetCBuffer() };
-
-	// Create new heap-allocated data packet:
 	DataPacket* pData = new DataPacket( zDataBuffer );
 
-	//printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Buffer raw: %s.\n", Stream, StreamBuffer.Buffer, sizeof(RawBuffer), RawBuffer );
-	//printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, aCBuffer.size(), sBufferLength, zBuffer.c_str(), pCBuffer );
+	printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Original string: %s.\n", Stream, pData->GetCBuffer(), pData->GetBufferSize(), zDataBuffer.c_str() );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
@@ -551,6 +496,7 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, pData->GetQuicBuffer(), pData->GetQuicBufferCount(), QUIC_SEND_FLAG_FIN, pData ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
+		delete pData;
 		ShutdownClientConnection( m_ClientConnection );
 	}
 }
@@ -558,7 +504,16 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 void
 QuicDriver::ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers )
 {
-	//TODO, take from server stream callback once confirmed to work.
+	for ( uint32_t i = 0; i < iBufferCount; ++i )
+	{
+		uint8_t* pCBuffer = pIncBuffers[i].Buffer;
+		size_t sBufferLength = pIncBuffers[i].Length;
+
+		std::stringstream sstream;
+		sstream.write( (char*)pCBuffer, sBufferLength );
+
+		printf( "Data received: %p. sstream: %s\n", pCBuffer, sstream.str().c_str() );
+	}
 }
 
 void
