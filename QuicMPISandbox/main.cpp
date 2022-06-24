@@ -464,14 +464,17 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 		MPI_Gather( &iStatusBuffer, 1, MPI_INT, rcounts, 1, MPI_INT, iReceiverRank, mCommunicator );
 
 		bWait = Quic::S_HasOpenStreams();
-		if ( bIsReceiverRank && !bWait )
+		if ( bIsReceiverRank )
 		{
-			// Receiver rank will also wait if any other ranks are sending data .
-			bWait = false;
-			for ( int i = 1; i < nRanks; ++i )
+			if ( !bWait )
 			{
-				if ( rcounts[i] != 0 ) bWait = true;
-				PrintLogLine( std::format( "Received status from rank {}: {}.", i, rcounts[i] ), iLocalRank );
+				// Receiver rank will also wait if any other ranks are sending data .
+				bWait = false;
+				for ( int i = 1; i < nRanks; ++i )
+				{
+					if ( rcounts[i] != 0 ) bWait = true;
+					PrintLogLine( std::format( "Received status from rank {}: {}.", i, rcounts[i] ), iLocalRank );
+				}
 			}
 
 			delete rcounts;

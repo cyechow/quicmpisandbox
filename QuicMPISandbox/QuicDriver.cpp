@@ -460,14 +460,13 @@ QuicDriver::ClientSend( HQUIC Connection )
 /// Creates new unidirectional stream, sends data, and closes it once done.
 /// </summary>
 void
-QuicDriver::ClientSendData( std::string zBuffer )
+QuicDriver::ClientSendData( const std::string zDataBuffer )
 {
 	printf( __FUNCTION__ );
 	printf( "\n" );
 	if ( !m_bClientConnected )
 	{
-		const QUIC_BUFFER TestStreamBuffer = { sizeof( zBuffer ), (uint8_t*)zBuffer.c_str() };
-		printf( "Client not connected to server! Cannot send data: %s. Buffer: %p.\n", zBuffer.c_str(), TestStreamBuffer.Buffer );
+		printf( "Client not connected to server! Cannot send data: %s..\n", zDataBuffer );
 		return;
 	}
 
@@ -509,24 +508,47 @@ QuicDriver::ClientSendData( std::string zBuffer )
 	// Allocates and builds the buffer to send over the stream.
 	// TODO: Not sure if there's a better way of creating a uint8_t*
 	//
-	size_t sBufferLength = zBuffer.length();
-	std::vector<uint8_t> aCBuffer( zBuffer.begin(), zBuffer.end() );
-	uint8_t* pCBuffer = &aCBuffer[0];
-	for ( uint8_t c : aCBuffer )
-	{
-		printf( "[strm-client][%p] Sending data, value: %d.\n", Stream, c );
-	}
+	//size_t sBufferLength = zBuffer.length();
+	//std::vector<uint8_t> aCBuffer( zBuffer.begin(), zBuffer.end() );
+	//uint8_t* pCBuffer = &aCBuffer[0]; // Pointer to the address of the first value in vector.
+	//for ( uint8_t c : aCBuffer )
+	//{
+	//	printf( "[strm-client][%p] Sending data, value: %d.\n", Stream, c );
+	//}
+
+	//uint8_t RawBuffer[] = "testing";
+	//for ( auto c : RawBuffer )
+	//{
+	//	printf( "[strm-client][%p] uint8_t array value: %c.\n", Stream, c );
+	//}
+
+	//printf( "[strm-client][%p] Creating char array of size: %i, copying contents of string buffer into it.\n", Stream, (int)( sizeof( zBuffer ) + 1 ) );
+	//char aBuffer[8];
+	//strcpy_s( aBuffer, 8, zBuffer.c_str() );
+
+	//for ( auto c : aBuffer )
+	//{
+	//	printf( "[strm-client][%p] Char array value: %c.\n", Stream, c );
+	//}
 
 	// TODO: Is there a way around this size_t to uint32_t conversion...
-	QUIC_BUFFER StreamBuffer = { static_cast<uint32_t>( sBufferLength ), pCBuffer };
-	printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, aCBuffer.size(), sBufferLength, zBuffer.c_str(), pCBuffer );
+	//QUIC_BUFFER StreamBuffer = { static_cast<uint32_t>( sBufferLength ), pCBuffer };
+	//QUIC_BUFFER StreamBuffer = { sizeof(aBuffer) - 1, (uint8_t*)aBuffer };
+	//QUIC_BUFFER StreamBuffer = { sizeof( RawBuffer ), RawBuffer };
+	//QUIC_BUFFER StreamBuffer = { pData->GetBufferSize(), pData->GetCBuffer() };
+
+	// Create new heap-allocated data packet:
+	DataPacket* pData = new DataPacket( zDataBuffer );
+
+	//printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Buffer raw: %s.\n", Stream, StreamBuffer.Buffer, sizeof(RawBuffer), RawBuffer );
+	//printf( "[strm-client][%p] Sending data: %p. Buffer length: %" PRIu64 ". Size: %" PRIu64 ". String: %s. uint8_t: %p.\n", Stream, StreamBuffer.Buffer, aCBuffer.size(), sBufferLength, zBuffer.c_str(), pCBuffer );
 
 	//
 	// Sends the buffer over the stream. Note the FIN flag is passed along with
 	// the buffer. This indicates this is the last buffer on the stream and the
 	// the stream is shut down (in the send direction) immediately after.
 	//
-	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, &StreamBuffer, 1, QUIC_SEND_FLAG_FIN, nullptr ) ) )
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, pData->GetQuicBuffer(), pData->GetQuicBufferCount(), QUIC_SEND_FLAG_FIN, pData ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		ShutdownClientConnection( m_ClientConnection );

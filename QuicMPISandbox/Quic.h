@@ -3,6 +3,8 @@
 #include "msquic.h"
 #include <string>
 
+#include "DataPacket.h"
+
 typedef struct QUIC_CREDENTIAL_CONFIG_HELPER
 {
     QUIC_CREDENTIAL_CONFIG CredConfig;
@@ -35,7 +37,7 @@ public:
 		virtual void		CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnsecure, const char* pResumptionTicket ) = 0;
 		virtual bool		ClientLoadConfiguration( bool bUnsecure ) = 0;
 		virtual void		ClientSend( HQUIC Connection ) = 0;
-		virtual void		ClientSendData( std::string zBuffer ) = 0;
+		virtual void		ClientSendData( const std::string zDataBuffer ) = 0;
 
 		virtual HQUIC		GetRegistration() = 0;
 		virtual HQUIC		GetListenerConfiguration() = 0;

@@ -96,11 +96,13 @@ copy /Y "$(SolutionDir)Certificates\mpikeyopen.pem" "$(SolutionDir)$(Platform)\$
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DataPacket.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Quic.cpp" />
     <ClCompile Include="QuicDriver.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DataPacket.h" />
     <ClInclude Include="Quic.h" />
     <ClInclude Include="QuicDriver.h" />
   </ItemGroup>

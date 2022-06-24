@@ -9,6 +9,9 @@ std::string				Quic::sm_zTestCertFile = "mpicertopen.pem";
 std::string				Quic::sm_zTestKeyFile = "mpikeyopen.pem";
 std::string				Quic::sm_zTestPassPhrase = "quicmpisandbox";
 
+// From "quic_platform.h"
+#define CXPLAT_MIN(a,b) (((a) < (b)) ? (a) : (b))
+
 void
 Quic::S_SetDriver( Driver* pDriver )
 {
@@ -96,6 +99,16 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		//
 		// Data was received from the peer on the stream.
 		//
+
+		//uint8_t* Dest = (uint8_t*)&Context->ResponseSize;
+		//uint64_t Offset = Event->RECEIVE.AbsoluteOffset;
+		//for ( uint32_t i = 0; Offset < sizeof( uint64_t ) && i < Event->RECEIVE.BufferCount; ++i )
+		//{
+		//	uint32_t Length = CXPLAT_MIN( (uint32_t)( sizeof( uint64_t ) - Offset ), Event->RECEIVE.Buffers[i].Length );
+		//	memcpy( Dest + Offset, Event->RECEIVE.Buffers[i].Buffer, Length );
+		//	Offset += Length;
+		//}
+
 		printf( "[strm-server][%p] Data received. Buffers length: %d. BufferCount: %d. Absolute Offset: %I64d. Total buffer length: %I64d.\n", Stream, Event->RECEIVE.Buffers->Length, Event->RECEIVE.BufferCount, Event->RECEIVE.AbsoluteOffset, Event->RECEIVE.TotalBufferLength );
 		printf( "[strm-server][%p] Cancelled: %d\n", Stream, Event->SEND_COMPLETE.Canceled );
 		for ( uint32_t i = 0; i < Event->RECEIVE.BufferCount; ++i )
@@ -106,10 +119,13 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 			// Make a copy:
 			std::vector<uint8_t> aCBuffer( pCBuffer, pCBuffer + sBufferLength );
 			std::vector<char> apData;
-			for ( size_t c = 0; c < sBufferLength; ++c )
+			int iCount = 0;
+			for ( auto c : aCBuffer )
+			//for ( size_t c = 0; c < sBufferLength; ++c )
 			{
-				apData.push_back( aCBuffer[c] );
-				printf( "[strm-server][%p] Data received, value at position %I64d: %d.\n", Stream, c, aCBuffer[c] );
+				apData.push_back( c );
+				//printf( "[strm-server][%p] Data received, value at position %i: %d.\n", Stream, iCount, c );
+				iCount++;
 			}
 
 			std::stringstream sstream;

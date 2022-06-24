@@ -19,7 +19,7 @@ public:
 	virtual void		CreateClient( const char* pTargetAddress, uint16_t iPort, bool bUnsecure, const char* pResumptionTicket ) override;
 	virtual bool		ClientLoadConfiguration( bool bUnsecure ) override;
 	virtual void		ClientSend( HQUIC Connection ) override;
-	virtual void		ClientSendData( std::string zBuffer ) override;
+	virtual void		ClientSendData( const std::string zDataBuffer ) override;
 
 	virtual void		ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers ) override;
 
