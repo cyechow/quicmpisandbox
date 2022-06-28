@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sstream>
 #include <vector>
+#include <chrono>
 
 Quic::Driver*			Quic::sm_pDriver = NULL;
 std::string				Quic::sm_zTestCertFile = "mpicertopen.pem";
@@ -80,6 +81,7 @@ Quic::S_HasOpenStreams()
 QUIC_STATUS QUIC_API
 Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 {
+	DataPacket* pData = nullptr;
 	switch ( Event->Type )
 	{
 	case QUIC_STREAM_EVENT_START_COMPLETE:
@@ -92,19 +94,27 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// A previous StreamSend call has completed, and the context is being
 		// returned back to the app.
 		//
-		delete Event->SEND_COMPLETE.ClientContext;
-		printf( "[strm-server][%p] Data sent\n", Stream );
+		pData = (DataPacket*)Event->SEND_COMPLETE.ClientContext;
+		if ( pData != nullptr )
+		{
+			uint64_t uiMS = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+			uint64_t dElapsedMS = uiMS - pData->GetTimeSent();
+			printf( "[strm-server][%p] Data sent (%I64d bytes). Time sent: %I64d ms. Elapsed time: %I64d ms\n", Stream, pData->GetBufferSize(), uiMS, dElapsedMS );
+		}
+		else
+		{
+			printf( "[strm-server][%p] Data sent, unexpected client context.\n", Stream );
+		}
+		delete pData;
 		break;
 	case QUIC_STREAM_EVENT_RECEIVE:
+		if ( !S_HasDriver() ) return QUIC_STATUS_ABORTED;
 		//
 		// Data was received from the peer on the stream.
 		//
-
+		printf( "[strm-server][%p] Data received. Current time: %I64d.\n", Stream, std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count() );
 		printf( "[strm-server][%p] Data received. Buffers length: %d. BufferCount: %d. Absolute Offset: %I64d. Total buffer length: %I64d.\n", Stream, Event->RECEIVE.Buffers->Length, Event->RECEIVE.BufferCount, Event->RECEIVE.AbsoluteOffset, Event->RECEIVE.TotalBufferLength );
-		if ( S_HasDriver() )
-		{
-			S_GetDriver()->ProcessData( Event->RECEIVE.BufferCount, Event->RECEIVE.Buffers );
-		}
+		S_GetDriver()->StoreStreamData( Stream, Event->RECEIVE.BufferCount, Event->RECEIVE.Buffers );
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
 		if ( !S_HasDriver() ) return QUIC_STATUS_ABORTED;
@@ -112,6 +122,7 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// The peer gracefully shut down its send direction of the stream.
 		//
 		printf( "[strm-server][%p] Peer shut down\n", Stream );
+		S_GetDriver()->ProcessData( Stream );
 		S_GetDriver()->ServerSend( Stream );
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
@@ -120,6 +131,7 @@ Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// The peer aborted its send direction of the stream.
 		//
 		printf( "[strm-server][%p] Peer aborted\n", Stream );
+		S_GetDriver()->ProcessData( Stream );
 		S_GetDriver()->GetMsQuic()->StreamShutdown( Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0 );
 		break;
 	case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
@@ -233,6 +245,7 @@ Quic::S_ServerListenerCallback( HQUIC, void*, QUIC_LISTENER_EVENT* Event )
 QUIC_STATUS QUIC_API
 Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 {
+	DataPacket* pData = nullptr;
 	switch ( Event->Type )
 	{
 	case QUIC_STREAM_EVENT_START_COMPLETE:
@@ -248,8 +261,18 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		// A previous StreamSend call has completed, and the context is being
 		// returned back to the app.
 		//
-		delete Event->SEND_COMPLETE.ClientContext;
-		printf( "[strm-client][%p] Data sent\n", Stream );
+		pData = (DataPacket*)Event->SEND_COMPLETE.ClientContext;
+		if ( pData != nullptr )
+		{
+			uint64_t uiMS = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+			uint64_t dElapsedMS = uiMS - pData->GetTimeSent();
+			printf( "[strm-client][%p] Data sent (%I64d bytes). Time sent: %I64d ms. Elapsed time: %I64d ms\n", Stream, pData->GetBufferSize(), uiMS, dElapsedMS );
+		}
+		else
+		{
+			printf( "[strm-client][%p] Data sent, unexpected client context.\n", Stream );
+		}
+		delete pData;
 		break;
 	case QUIC_STREAM_EVENT_RECEIVE:
 		//
@@ -258,20 +281,28 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 		printf( "[strm-client][%p] Data received: %p\n", Stream, Event->RECEIVE.Buffers->Buffer );
 		if ( S_HasDriver() )
 		{
-			S_GetDriver()->ProcessData( Event->RECEIVE.BufferCount, Event->RECEIVE.Buffers );
+			S_GetDriver()->StoreStreamData( Stream, Event->RECEIVE.BufferCount, Event->RECEIVE.Buffers );
 		}
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
 		//
-		// The peer gracefully shut down its send direction of the stream.
+		// The peer aborted its send direction of the stream.
 		//
 		printf( "[strm-client][%p] Peer aborted\n", Stream );
+		if ( S_HasDriver() )
+		{
+			S_GetDriver()->ProcessData( Stream );
+		}
 		break;
 	case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
 		//
-		// The peer aborted its send direction of the stream.
+		// The peer gracefully shut down its send direction of the stream.
 		//
 		printf( "[strm-client][%p] Peer shut down\n", Stream );
+		if ( S_HasDriver() )
+		{
+			S_GetDriver()->ProcessData( Stream );
+		}
 		break;
 	case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
 		//

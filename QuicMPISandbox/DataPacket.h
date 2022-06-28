@@ -18,9 +18,14 @@ public:
 	uint8_t*				GetCBuffer()			{ return &m_aCBuffer[0]; }
 	const size_t			GetBufferSize()			{ return m_zBuffer.size(); }
 
+	void					SetTimeSentNow();
+	uint64_t				GetTimeSent()			{ return m_iTimeSentMs; }
+
 private:
 	std::string				m_zBuffer;
 	std::vector<uint8_t>	m_aCBuffer;
 
 	QUIC_BUFFER				m_QuicBuffer;
+
+	uint64_t				m_iTimeSentMs;
 };

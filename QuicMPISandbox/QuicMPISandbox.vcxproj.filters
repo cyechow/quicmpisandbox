@@ -11,6 +11,7 @@
     <ClCompile Include="DataPacket.cpp">
       <Filter>Quic</Filter>
     </ClCompile>
+    <ClCompile Include="Log.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Quic">
@@ -27,6 +28,7 @@
     <ClInclude Include="DataPacket.h">
       <Filter>Quic</Filter>
     </ClInclude>
+    <ClInclude Include="Log.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

@@ -1,5 +1,7 @@
 #include "DataPacket.h"
 
+#include <chrono>
+
 DataPacket::DataPacket( const std::string zBuffer ) :
 	m_zBuffer( zBuffer ),
 	m_aCBuffer( zBuffer.begin(), zBuffer.end() )
@@ -10,3 +12,10 @@ DataPacket::DataPacket( const std::string zBuffer ) :
 
 DataPacket::~DataPacket()
 {}
+
+void
+DataPacket::SetTimeSentNow()
+{
+	m_iTimeSentMs = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
+	printf( "Setting time sent: %I64d\n", m_iTimeSentMs );
+}

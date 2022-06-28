@@ -6,6 +6,7 @@
 #include <string>
 #include <ip2string.h>
 
+#include <format>
 #include <sstream>
 #include <thread>
 #include <vector>
@@ -424,6 +425,7 @@ QuicDriver::ClientSend( HQUIC Connection )
 	// the buffer. This indicates this is the last buffer on the stream and the
 	// the stream is shut down (in the send direction) immediately after.
 	//
+	pData->SetTimeSentNow();
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, pData->GetQuicBuffer(), pData->GetQuicBufferCount(), QUIC_SEND_FLAG_FIN, pData ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
@@ -493,6 +495,7 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 	// the buffer. This indicates this is the last buffer on the stream and the
 	// the stream is shut down (in the send direction) immediately after.
 	//
+	pData->SetTimeSentNow();
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamSend( Stream, pData->GetQuicBuffer(), pData->GetQuicBufferCount(), QUIC_SEND_FLAG_FIN, pData ) ) )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
@@ -502,24 +505,110 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 }
 
 void
-QuicDriver::ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers )
+QuicDriver::StoreStreamData( HQUIC Stream, int iBufferCount, const QUIC_BUFFER* pIncBuffers )
 {
-	for ( uint32_t i = 0; i < iBufferCount; ++i )
+	printf( "[%p]: Storing data...\n", Stream );
+	if ( !m_aStreamDataBuffers.contains( Stream ) )
+	{
+		m_aStreamDataBuffers.insert_or_assign( Stream, std::vector<std::stringstream*>() );
+	}
+	std::vector<std::stringstream*>* paBuffers  = &m_aStreamDataBuffers.at( Stream );
+
+	printf( "[%p] Buffers: %I64d\n", Stream, paBuffers->size() );
+
+	for ( int i = 0; i < iBufferCount; ++i )
 	{
 		uint8_t* pCBuffer = pIncBuffers[i].Buffer;
 		size_t sBufferLength = pIncBuffers[i].Length;
 
-		std::stringstream sstream;
-		sstream.write( (char*)pCBuffer, sBufferLength );
+		if ( paBuffers->size() <= i )
+			paBuffers->push_back( new std::stringstream() );
 
-		// TEST
-		int iTestVal;
-		sstream.read( reinterpret_cast<char*>( &iTestVal ), sizeof( int ) );
-		printf( "First value: %d.\n", iTestVal );
-		// ENDTEST
-
-		printf( "Data received: %p. sstream: %s\n", pCBuffer, sstream.str().c_str() );
+		std::stringstream* pDataBuffer = paBuffers->at( i );
+		pDataBuffer->write( (char*)pCBuffer, sBufferLength );
+		
+		//printf( "[%p] Data received: %p. String: %s\n", Stream, pCBuffer, pDataBuffer->str().c_str() );
+		printf( "[%p] Data received: %p\n", Stream, pCBuffer );
 	}
+}
+
+void
+QuicDriver::ProcessData( HQUIC Stream )
+{
+	printf( "[%p]: Processing data...\n", Stream );
+	auto tStart = std::chrono::steady_clock::now();
+	double dTimeReceived = double( std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count() );
+
+	if ( m_aStreamDataBuffers.contains( Stream ) )
+	{
+		std::vector<std::stringstream*> aBuffers = m_aStreamDataBuffers[Stream];
+		printf( "[%p]: Streams stored: %I64d\n", Stream, aBuffers.size() );
+		for ( std::stringstream* pDataBuffer : aBuffers )
+		{
+			printf( "[%p] Data in storage: %s\n", Stream, pDataBuffer->str().c_str() );
+
+			// TEST
+			std::string zPacketType;
+			size_t iSize;
+			*pDataBuffer >> iSize;
+			if ( iSize )
+			{
+				char* azData = new char[iSize + 1];
+				pDataBuffer->read( azData, iSize );
+				azData[iSize] = 0;
+				zPacketType.assign( azData );
+				delete[] azData;
+			}
+			else
+			{
+				zPacketType.clear();
+			}
+
+			if ( zPacketType == "data" )
+			{
+				int iCount;
+				if ( pDataBuffer->read( reinterpret_cast<char*>( &iCount ), sizeof( int ) ) )
+				{
+					printf( "[%p] # of values: %d\n", Stream, iCount );
+					if ( iCount < 1000000 )
+					{
+						std::vector<int> aValues;
+						for ( int j = 0; j < iCount; ++j )
+						{
+							int iResult;
+							if ( pDataBuffer->read( reinterpret_cast<char*>( &iResult ), sizeof( int ) ) )
+							{
+								//printf( "[%p] Retrieved value: %d\n", Stream, iResult );
+								aValues.push_back( iResult );
+							}
+						}
+						printf( "[%p] Retrieved %d values\n", Stream, aValues.size() );
+					}
+				}
+				double dTimeSent;
+				if ( pDataBuffer->read( reinterpret_cast<char*>( &dTimeSent ), sizeof( double ) ) )
+				{
+					printf( "[%p] Time sent: %f\n", Stream, dTimeSent );
+					double dElapsedMs = double( dTimeReceived ) - dTimeSent;
+					AddTimeToReceive( dElapsedMs );
+					printf( "[%p] Data fully received. Elapsed time: %f.\n", Stream, dElapsedMs );
+				}
+			}
+			// ENDTEST
+
+			// Done with data:
+			delete pDataBuffer;
+		}
+
+		m_aStreamDataBuffers.erase( Stream );
+	}
+
+	auto tEnd = std::chrono::steady_clock::now();
+	double dElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
+
+	AddTimeToProcess( dElapsedMS );
+
+	printf( "[%p] Processing time: %f ms\n", Stream, dElapsedMS );
 }
 
 void

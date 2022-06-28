@@ -22,12 +22,21 @@
 #include <Windows.h>
 #include "QuicDriver.h"
 
+#include "Log.h"
+
 using namespace std::chrono_literals;
+
+Logger g_Log;
 
 void PrintLogLine( std::string zMsg, int iLocalRank )
 {
+	if ( !g_Log.IsValid() )
+	{
+		g_Log.OpenLog( std::format( "QuicMPISandboxLog_Rank_{}.txt", iLocalRank ) );
+	}
 	uint64_t uiSeconds = std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
 	printf( "[%" PRIu64  "] Rank %d: %s\n", uiSeconds, iLocalRank, zMsg.c_str() );
+	g_Log.AddToLog( zMsg );
 }
 
 void RunMpiTest( int iNumArgs, char** azArgs )
@@ -155,8 +164,9 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	// 200ms seems like enough time for now - this might vary between machines.
 	std::this_thread::sleep_for( 200ms );
 
-	int iIterations = 1;
-	int nDataSize = 10;
+	int iIterations = 100;
+	int nDataSize = 1000;
+	int iPacketSize = 44; // bytes, intervals of 4
 	for ( size_t i = 0; i < iIterations; ++i )
 	{
 		// do work
@@ -166,19 +176,40 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 		if ( !bIsReceiverRank )
 		{
 			PrintLogLine( "Sending data from client to listener.", iLocalRank );
-			std::stringstream				ssData;
-			//ssData << "testing";
-			int								my_value = int( i + 1 ) * ( 10 + iLocalRank );
+			std::stringstream ssData;
+			std::string zPacketType = "data";
+			ssData << zPacketType.size();
+			if ( !zPacketType.empty() ) ssData.write( zPacketType.c_str(), zPacketType.size() );
+
+			int iBaseValue = int( i + 1 ) * ( 10 + iLocalRank );
+			int iNumberOfIntegers = iPacketSize / sizeof(int);
+			int iTotalCount = nDataSize * iNumberOfIntegers;
+			ssData.write( reinterpret_cast<const char*>( &iTotalCount ), sizeof( int ) );
+
 			for ( int j = 0; j < nDataSize; ++j )
 			{
-				int								iVal = my_value + j;
-				ssData.write( reinterpret_cast<const char*>( &iVal ), sizeof( int ) );
-				//if ( j == 0 )
+				int							iVal = iBaseValue + j;
+				for ( size_t k = 0; k < iNumberOfIntegers; k++ )
 				{
-					PrintLogLine( std::format( "First value sent: {}. Size of vector: {}.", iVal, nDataSize ), iLocalRank );
+					ssData.write( reinterpret_cast<const char*>( &iVal ), sizeof( int ) );
+				}
+				if ( j == 0 )
+				{
+					PrintLogLine( std::format( "Packet value: {}.", iVal ), iLocalRank );
 				}
 			}
+
+			PrintLogLine( std::format( "Sending {} bytes of data. {} values.", ssData.str().size(), iTotalCount ), iLocalRank );
+
+			auto tStart = std::chrono::steady_clock::now();
+			double dStartMs = double( std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count() );
+			ssData.write( reinterpret_cast<const char*>( &dStartMs ), sizeof( double ) );
 			Quic::S_GetDriver()->ClientSendData( ssData.str() );
+			auto tEnd = std::chrono::steady_clock::now();
+			double dElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
+			Quic::S_GetDriver()->AddTimeToSend( dElapsedMS );
+			PrintLogLine( std::format( "Sending data with start time: {}", dStartMs ), iLocalRank );
+			PrintLogLine( std::format( "Started sending data, elapsed time: {} ms.", dElapsedMS ), iLocalRank );
 		}
 		else
 		{
@@ -188,6 +219,7 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 	PrintLogLine( std::format( "Open streams: {}.", Quic::S_HasOpenStreams() ? 1 : 0 ), iLocalRank );
 
+	auto tStart = std::chrono::steady_clock::now();
 	// All ranks need to remain open while any other ranks are still sending or processing data.
 	// Receiver rank will be one to figure out whether all ranks are waiting.
 	bool bWait = true;
@@ -213,11 +245,11 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 				for ( int i = 1; i < nRanks; ++i )
 				{
 					if ( rcounts[i] != 0 ) bWait = true;
-					PrintLogLine( std::format( "Received status from rank {}: {}.", i, rcounts[i] ), iLocalRank );
+					//PrintLogLine( std::format( "Received status from rank {}: {}.", i, rcounts[i] ), iLocalRank );
 				}
 			}
 
-			delete rcounts;
+			delete[] rcounts;
 		}
 
 		// Broadcast whether receiver rank is waiting or not:
@@ -228,13 +260,50 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 		if ( !bIsReceiverRank )
 		{
 			bWait = iReceiverWaitStatus == 1;
-			PrintLogLine( std::format( "Receiver wait status: {}.", iReceiverWaitStatus ), iLocalRank );
+			//PrintLogLine( std::format( "Receiver wait status: {}.", iReceiverWaitStatus ), iLocalRank );
 		}
 
-		if ( bWait ) PrintLogLine( "Waiting for data sending to finish.", iLocalRank );
+		//if ( bWait ) PrintLogLine( "Waiting for data sending to finish.", iLocalRank );
 
 		std::this_thread::sleep_for( 100ms );
 	} while ( bWait );
+
+	auto tEnd = std::chrono::steady_clock::now();
+	double dWaitTimeMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
+	PrintLogLine( std::format( "All streams closed - done waiting. Elapsed time: {} ms.", dWaitTimeMS ), iLocalRank );
+
+	Quic::S_GetDriver()->AddTimeToClose( dWaitTimeMS );
+
+	// Save timing stats to file:
+	Logger stats;
+	stats.OpenLog( std::format( "stats_rank_{}.txt", iLocalRank ) );
+	stats.AddToLog( "TimeToSend" ); stats.AddToLog( "----------" );
+	for ( auto v : Quic::S_GetDriver()->GetTimeToSend() )
+	{
+		stats.AddToLog( std::format( "{}", v ) );
+	}
+	stats.AddToLog( "" );
+
+	stats.AddToLog( "GetTimeToReceive" ); stats.AddToLog( "----------------" );
+	for ( auto v : Quic::S_GetDriver()->GetTimeToReceive() )
+	{
+		stats.AddToLog( std::format( "{}", v ) );
+	}
+	stats.AddToLog( "" );
+
+	stats.AddToLog( "GetTimeToProcess" ); stats.AddToLog( "----------------" );
+	for ( auto v : Quic::S_GetDriver()->GetTimeToProcess() )
+	{
+		stats.AddToLog( std::format( "{}", v ) );
+	}
+	stats.AddToLog( "" );
+
+	stats.AddToLog( "GetTimeToClose" ); stats.AddToLog( "--------------" );
+	for ( auto v : Quic::S_GetDriver()->GetTimeToClose() )
+	{
+		stats.AddToLog( std::format( "{}", v ) );
+	}
+	stats.AddToLog( "" );
 
 	PrintLogLine( "Destroying Quic driver...", iLocalRank );
 	Quic::S_DestroyDriver();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Quic.h"
+#include <unordered_map>
 
 class QuicDriver :		public Quic::Driver
 {
@@ -21,7 +22,17 @@ public:
 	virtual void		ClientSend( HQUIC Connection ) override;
 	virtual void		ClientSendData( const std::string zDataBuffer ) override;
 
-	virtual void		ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers ) override;
+	virtual void		StoreStreamData( HQUIC Stream, int iBufferCount, const QUIC_BUFFER* pIncBuffers ) override;
+	virtual void		ProcessData( HQUIC Stream ) override;
+
+	virtual void		AddTimeToSend( double dElapsedMs ) override { m_adTimeToSendMs.push_back( dElapsedMs ); }
+	virtual std::vector<double>		GetTimeToSend() override { return m_adTimeToSendMs; }
+	virtual void		AddTimeToReceive( double dElapsedMs ) override { m_adTimeToReceiveMs.push_back( dElapsedMs ); }
+	virtual std::vector<double>		GetTimeToReceive() override { return m_adTimeToReceiveMs; }
+	virtual void		AddTimeToProcess( double dElapsedMs ) override { m_adTimeToProcessMs.push_back( dElapsedMs ); }
+	virtual std::vector<double>		GetTimeToProcess() override { return m_adTimeToProcessMs; }
+	virtual void		AddTimeToClose( double dElapsedMs ) override { m_adTimeToCloseMs.push_back( dElapsedMs ); }
+	virtual std::vector<double>		GetTimeToClose() override { return m_adTimeToCloseMs; }
 
 	virtual HQUIC		GetRegistration() override { return m_Registration; }
 	virtual HQUIC		GetListenerConfiguration() override { return m_ListenerConfiguration; }
@@ -111,4 +122,14 @@ private:
 
 	bool										m_bClientStreamReady;
 	int											m_iOpenStreams;
+
+	// Stream Data
+	std::unordered_map<HQUIC, std::vector<std::stringstream*>>	m_aStreamDataBuffers;
+
+	// Testing - times
+	std::vector<double>							m_adTimeToSendMs; // Delay on current thread.
+	std::vector<double>							m_adTimeToReceiveMs; // Indirect delay on receiver thread.
+	std::vector<double>							m_adTimeToProcessMs; // Indirect delay on receiver thread.
+	std::vector<double>							m_adTimeToCloseMs; // Delay on all threads.
+
 };

@@ -56,7 +56,17 @@ public:
 		virtual void		DecrementOpenStreamCount() = 0;
 		virtual bool		HasOpenStreams() = 0;
 
-		virtual void		ProcessData( int iBufferCount, const QUIC_BUFFER* pIncBuffers ) = 0;
+		virtual void		StoreStreamData( HQUIC Stream, int iBufferCount, const QUIC_BUFFER* pIncBuffers ) = 0;
+		virtual void		ProcessData( HQUIC Stream ) = 0;
+
+		virtual void		AddTimeToSend( double dElapsedMs ) = 0;
+		virtual void		AddTimeToReceive( double dElapsedMs ) = 0;
+		virtual void		AddTimeToProcess( double dElapsedMs ) = 0;
+		virtual void		AddTimeToClose( double dElapsedMs ) = 0;
+		virtual std::vector<double>		GetTimeToSend() = 0;
+		virtual std::vector<double>		GetTimeToReceive() = 0;
+		virtual std::vector<double>		GetTimeToProcess() = 0;
+		virtual std::vector<double>		GetTimeToClose() = 0;
 	};
 
 public:
