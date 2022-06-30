@@ -165,7 +165,7 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 	std::this_thread::sleep_for( 200ms );
 
 	int iIterations = 100;
-	int nDataSize = 1000;
+	int nDataSize = 1;
 	int iPacketSize = 44; // bytes, intervals of 4
 	for ( size_t i = 0; i < iIterations; ++i )
 	{
@@ -204,11 +204,14 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 			auto tStart = std::chrono::steady_clock::now();
 			double dStartMs = double( std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count() );
 			ssData.write( reinterpret_cast<const char*>( &dStartMs ), sizeof( double ) );
+			auto tStartTimeEnd = std::chrono::steady_clock::now();
 			Quic::S_GetDriver()->ClientSendData( ssData.str() );
 			auto tEnd = std::chrono::steady_clock::now();
 			double dElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
-			Quic::S_GetDriver()->AddTimeToSend( dElapsedMS );
+			double dElapsedWriteMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tStartTimeEnd - tStart ).count() );
+			Quic::S_StoreTime( "CallSendData", dElapsedMS );
 			PrintLogLine( std::format( "Sending data with start time: {}", dStartMs ), iLocalRank );
+			PrintLogLine( std::format( "Elapsed time for writing start time: {}", dElapsedWriteMS ), iLocalRank );
 			PrintLogLine( std::format( "Started sending data, elapsed time: {} ms.", dElapsedMS ), iLocalRank );
 		}
 		else
@@ -265,45 +268,17 @@ void RunMpiTest( int iNumArgs, char** azArgs )
 
 		//if ( bWait ) PrintLogLine( "Waiting for data sending to finish.", iLocalRank );
 
-		std::this_thread::sleep_for( 100ms );
+		std::this_thread::sleep_for( 0.001ms );
 	} while ( bWait );
 
 	auto tEnd = std::chrono::steady_clock::now();
 	double dWaitTimeMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
 	PrintLogLine( std::format( "All streams closed - done waiting. Elapsed time: {} ms.", dWaitTimeMS ), iLocalRank );
 
-	Quic::S_GetDriver()->AddTimeToClose( dWaitTimeMS );
+	Quic::S_StoreTime( "CloseStreams", dWaitTimeMS );
 
 	// Save timing stats to file:
-	Logger stats;
-	stats.OpenLog( std::format( "stats_rank_{}.txt", iLocalRank ) );
-	stats.AddToLog( "TimeToSend" ); stats.AddToLog( "----------" );
-	for ( auto v : Quic::S_GetDriver()->GetTimeToSend() )
-	{
-		stats.AddToLog( std::format( "{}", v ) );
-	}
-	stats.AddToLog( "" );
-
-	stats.AddToLog( "GetTimeToReceive" ); stats.AddToLog( "----------------" );
-	for ( auto v : Quic::S_GetDriver()->GetTimeToReceive() )
-	{
-		stats.AddToLog( std::format( "{}", v ) );
-	}
-	stats.AddToLog( "" );
-
-	stats.AddToLog( "GetTimeToProcess" ); stats.AddToLog( "----------------" );
-	for ( auto v : Quic::S_GetDriver()->GetTimeToProcess() )
-	{
-		stats.AddToLog( std::format( "{}", v ) );
-	}
-	stats.AddToLog( "" );
-
-	stats.AddToLog( "GetTimeToClose" ); stats.AddToLog( "--------------" );
-	for ( auto v : Quic::S_GetDriver()->GetTimeToClose() )
-	{
-		stats.AddToLog( std::format( "{}", v ) );
-	}
-	stats.AddToLog( "" );
+	Quic::S_SaveStoredTimesToFile( std::format( "stats_rank_{}_{}.txt", iLocalRank, nDataSize ) );
 
 	PrintLogLine( "Destroying Quic driver...", iLocalRank );
 	Quic::S_DestroyDriver();

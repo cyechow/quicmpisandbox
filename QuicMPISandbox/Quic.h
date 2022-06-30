@@ -5,6 +5,8 @@
 
 #include "DataPacket.h"
 
+#include "TimeKeeper.h"
+
 typedef struct QUIC_CREDENTIAL_CONFIG_HELPER
 {
     QUIC_CREDENTIAL_CONFIG CredConfig;
@@ -38,6 +40,10 @@ public:
 		virtual bool		ClientLoadConfiguration( bool bUnsecure ) = 0;
 		virtual void		ClientSend( HQUIC Connection ) = 0;
 		virtual void		ClientSendData( const std::string zDataBuffer ) = 0;
+		//virtual void		ClientSendData( HQUIC Stream, const std::string zDataBuffer ) = 0;
+
+		virtual HQUIC		CreateStream() = 0;
+		virtual bool		CloseStream( HQUIC Stream ) = 0;
 
 		virtual HQUIC		GetRegistration() = 0;
 		virtual HQUIC		GetListenerConfiguration() = 0;
@@ -58,15 +64,6 @@ public:
 
 		virtual void		StoreStreamData( HQUIC Stream, int iBufferCount, const QUIC_BUFFER* pIncBuffers ) = 0;
 		virtual void		ProcessData( HQUIC Stream ) = 0;
-
-		virtual void		AddTimeToSend( double dElapsedMs ) = 0;
-		virtual void		AddTimeToReceive( double dElapsedMs ) = 0;
-		virtual void		AddTimeToProcess( double dElapsedMs ) = 0;
-		virtual void		AddTimeToClose( double dElapsedMs ) = 0;
-		virtual std::vector<double>		GetTimeToSend() = 0;
-		virtual std::vector<double>		GetTimeToReceive() = 0;
-		virtual std::vector<double>		GetTimeToProcess() = 0;
-		virtual std::vector<double>		GetTimeToClose() = 0;
 	};
 
 public:
@@ -85,6 +82,11 @@ public:
 	static std::string		S_GetTestCertFileName() { return sm_zTestCertFile; }
 	static std::string		S_GetTestKeyFileName() { return sm_zTestKeyFile; }
 	static std::string		S_GetTestPassPhrase() { return sm_zTestPassPhrase; }
+
+
+	static void				S_StoreTime( std::string zName, double dElapsedMs );
+	static void				S_SaveStoredTimesToFile( std::string zFileName );
+
 
 	//
 	// The server's callback for stream events from MsQuic.
@@ -159,4 +161,6 @@ private:
 	static std::string		sm_zTestCertFile;
 	static std::string		sm_zTestKeyFile;
 	static std::string		sm_zTestPassPhrase;
+
+	static TimeKeeper		sm_TimeKeeper;
 };

@@ -1,5 +1,8 @@
 #include "Log.h"
 
+#include "mpi.h"
+#include <format>
+
 Logger::Logger() :
 	m_pStream( NULL )
 {}
@@ -29,3 +32,18 @@ Logger::AddToLog( std::string zMsg )
 
 	return true;
 }
+
+void
+Logger::S_Log( std::string zMsg )
+{
+	static Logger		s_Log;
+	if ( !s_Log.IsValid() )
+	{
+		int iLocalRank;
+		MPI_Comm_rank( MPI_COMM_WORLD, &iLocalRank );
+		s_Log.OpenLog( std::format( "DebugLog_Rank_{}.txt", iLocalRank ) );
+	}
+
+	s_Log.AddToLog( zMsg );
+}
+

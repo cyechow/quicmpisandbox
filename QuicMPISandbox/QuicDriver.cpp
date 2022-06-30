@@ -21,6 +21,7 @@ QuicDriver::QuicDriver() :
 	m_Listener( nullptr ),
 	m_ClientConfiguration( nullptr ),
 	m_ClientConnection( nullptr ),
+	m_Stream( nullptr ),
 	m_ListenerStatus( QUIC_STATUS_NOT_FOUND ),
 	m_ClientStatus( QUIC_STATUS_NOT_FOUND ),
 	m_bListenerRunning( false ),
@@ -395,7 +396,6 @@ QuicDriver::ClientSend( HQUIC Connection )
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamOpen( Connection, QUIC_STREAM_OPEN_FLAG_NONE, Quic::S_ClientStreamCallback, nullptr, &Stream ) ) )
 	{
 		printf( "StreamOpen failed, 0x%x!\n", Status );
-		ShutdownClientConnection( Connection );
 		return;
 	}
 
@@ -409,7 +409,6 @@ QuicDriver::ClientSend( HQUIC Connection )
 	{
 		printf( "StreamStart failed, 0x%x!\n", Status );
 		m_MsQuic->StreamClose( Stream );
-		ShutdownClientConnection( Connection );
 		return;
 	}
 
@@ -430,7 +429,6 @@ QuicDriver::ClientSend( HQUIC Connection )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		delete pData;
-		ShutdownClientConnection( Connection );
 		return;
 	}
 }
@@ -442,6 +440,7 @@ QuicDriver::ClientSend( HQUIC Connection )
 void
 QuicDriver::ClientSendData( const std::string zDataBuffer )
 {
+	auto tStart = std::chrono::steady_clock::now();
 	if ( !m_bClientConnected )
 	{
 		printf( "Client not connected to server! Cannot send data\n" );
@@ -458,7 +457,6 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 	if ( QUIC_FAILED( Status = m_MsQuic->StreamOpen( m_ClientConnection, QUIC_STREAM_OPEN_FLAG_NONE, Quic::S_ClientStreamCallback, nullptr, &Stream ) ) )
 	{
 		printf( "StreamOpen failed, 0x%x!\n", Status );
-		ShutdownClientConnection( m_ClientConnection );
 		return;
 	}
 
@@ -472,15 +470,19 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 	{
 		printf( "StreamStart failed, 0x%x!\n", Status );
 		m_MsQuic->StreamClose( Stream );
-		ShutdownClientConnection( m_ClientConnection );
 		return;
 	}
 
+	auto tWaitStart = std::chrono::steady_clock::now();
 	while ( !IsClientStreamReady() )
 	{
-		printf( "[strm-client][%p] Waiting for stream start to complete.\n", Stream );
-		std::this_thread::sleep_for( 100ms );
+		std::this_thread::sleep_for( 0.001ms );
 	}
+	auto tWaitEnd = std::chrono::steady_clock::now();
+	double dWaitElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tWaitEnd - tWaitStart ).count() );
+	double dTotalStreamStartElapsedMs = double( std::chrono::duration_cast<std::chrono::milliseconds>( tWaitEnd - tStart ).count() );
+	printf( "[strm-client][%p] Waiting for stream start to complete took %f ms.\n", Stream, dWaitElapsedMS );
+	Quic::S_StoreTime( "StartStream", dTotalStreamStartElapsedMs );
 
 	//
 	// Allocates and builds the buffer to send over the stream.
@@ -500,8 +502,65 @@ QuicDriver::ClientSendData( const std::string zDataBuffer )
 	{
 		printf( "StreamSend failed, 0x%x!\n", Status );
 		delete pData;
-		ShutdownClientConnection( m_ClientConnection );
 	}
+	auto tEnd = std::chrono::steady_clock::now();
+	double dElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
+	printf( "Full ClientSendData call - elapsed time: %f\n", dElapsedMS );
+}
+
+HQUIC
+QuicDriver::CreateStream()
+{
+	auto tStart = std::chrono::steady_clock::now();
+	if ( !m_bClientConnected )
+	{
+		printf( "Client not connected to server! Cannot send data\n" );
+		return m_Stream;
+	}
+
+	QUIC_STATUS Status;
+
+	//
+	// Create/allocate a new bidirectional stream. The stream is just allocated
+	// and no QUIC stream identifier is assigned until it's started.
+	//
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamOpen( m_ClientConnection, QUIC_STREAM_OPEN_FLAG_NONE, Quic::S_ClientStreamCallback, nullptr, &m_Stream ) ) )
+	{
+		printf( "StreamOpen failed, 0x%x!\n", Status );
+		return m_Stream;
+	}
+
+	printf( "[strm-client][%p] Starting...\n", m_Stream );
+
+	//
+	// Starts the bidirectional stream. By default, the peer is not notified of
+	// the stream being started until data is sent on the stream.
+	//
+	if ( QUIC_FAILED( Status = m_MsQuic->StreamStart( m_Stream, QUIC_STREAM_START_FLAG_IMMEDIATE ) ) )
+	{
+		printf( "StreamStart failed, 0x%x!\n", Status );
+		m_MsQuic->StreamClose( m_Stream );
+		return m_Stream;
+	}
+
+	while ( !IsClientStreamReady() )
+	{
+		printf( "[strm-client][%p] Waiting for stream start to complete.\n", m_Stream );
+		std::this_thread::sleep_for( 1ms );
+	}
+
+	auto tEnd = std::chrono::steady_clock::now();
+	double dElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
+	printf( "Created stream - elapsed time: %f\n", dElapsedMS );
+	return m_Stream;
+}
+
+bool
+QuicDriver::CloseStream( HQUIC Stream )
+{
+	// TODO.
+	m_MsQuic->StreamClose( Stream );
+	return true;
 }
 
 void
@@ -590,7 +649,7 @@ QuicDriver::ProcessData( HQUIC Stream )
 				{
 					printf( "[%p] Time sent: %f\n", Stream, dTimeSent );
 					double dElapsedMs = double( dTimeReceived ) - dTimeSent;
-					AddTimeToReceive( dElapsedMs );
+					Quic::S_StoreTime( "ReceiveData", dElapsedMs );
 					printf( "[%p] Data fully received. Elapsed time: %f.\n", Stream, dElapsedMs );
 				}
 			}
@@ -606,7 +665,7 @@ QuicDriver::ProcessData( HQUIC Stream )
 	auto tEnd = std::chrono::steady_clock::now();
 	double dElapsedMS = double( std::chrono::duration_cast<std::chrono::milliseconds>( tEnd - tStart ).count() );
 
-	AddTimeToProcess( dElapsedMS );
+	Quic::S_StoreTime( "Process", dElapsedMS );
 
 	printf( "[%p] Processing time: %f ms\n", Stream, dElapsedMS );
 }

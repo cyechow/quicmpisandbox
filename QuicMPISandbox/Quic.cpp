@@ -78,6 +78,18 @@ Quic::S_HasOpenStreams()
 	return S_GetDriver()->HasOpenStreams();
 }
 
+void
+Quic::S_StoreTime( std::string zName, double dElapsedMs )
+{
+	sm_TimeKeeper.StoreTime( zName, dElapsedMs );
+}
+
+void
+Quic::S_SaveStoredTimesToFile( std::string zFileName )
+{
+	sm_TimeKeeper.SaveToFile( zFileName );
+}
+
 QUIC_STATUS QUIC_API
 Quic::S_ServerStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 {
@@ -233,6 +245,13 @@ Quic::S_ServerListenerCallback( HQUIC, void*, QUIC_LISTENER_EVENT* Event )
 		// proceed, the server must provide a configuration for QUIC to use. The
 		// app MUST set the callback handler before returning.
 		//
+		char localIpAddress[INET_ADDRSTRLEN];
+		inet_ntop( AF_INET, &( Event->NEW_CONNECTION.Info->LocalAddress->Ipv4.sin_addr ), localIpAddress, INET_ADDRSTRLEN );
+		char remoteIpAddress[INET_ADDRSTRLEN];
+		inet_ntop( AF_INET, &( Event->NEW_CONNECTION.Info->RemoteAddress->Ipv4.sin_addr ), localIpAddress, INET_ADDRSTRLEN );
+
+		printf( "[conn-server] New connection at local IP: [%s] and remote IP: [%s]\n", localIpAddress, remoteIpAddress );
+
 		S_GetDriver()->GetMsQuic()->SetCallbackHandler( Event->NEW_CONNECTION.Connection, (void*)S_ServerConnectionCallback, nullptr );
 		Status = S_GetDriver()->GetMsQuic()->ConnectionSetConfiguration( Event->NEW_CONNECTION.Connection, S_GetDriver()->GetListenerConfiguration() );
 		break;
@@ -250,7 +269,7 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 	{
 	case QUIC_STREAM_EVENT_START_COMPLETE:
 		printf( "[strm-client][%p] Stream start complete\n", Stream );
-		if ( S_HasDriver() )
+		if ( Event->START_COMPLETE.Status == QUIC_STATUS_SUCCESS && S_HasDriver())
 		{
 			S_GetDriver()->SetClientStreamReady( true );
 			S_GetDriver()->IncrementOpenStreamCount();
@@ -267,6 +286,8 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 			uint64_t uiMS = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch() ).count();
 			uint64_t dElapsedMS = uiMS - pData->GetTimeSent();
 			printf( "[strm-client][%p] Data sent (%I64d bytes). Time sent: %I64d ms. Elapsed time: %I64d ms\n", Stream, pData->GetBufferSize(), uiMS, dElapsedMS );
+
+			S_GetDriver()->AddTimeToSend( double( dElapsedMS ) );
 		}
 		else
 		{

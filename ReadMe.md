@@ -40,8 +40,8 @@ I'm handling this by passing in a DataPacket pointer into the context which is t
 * ~~Add in an iterative MPI structure used in the actual simulations (see [stack overflow question](https://stackoverflow.com/questions/71800790/mpi-igatherv-received-buffers-arent-filled-with-larger-amounts-of-data-sent))~~
 * Set up something to check whether listener connection has finished starting and streams can be created.
 * Add storage to local txt file from the receiver rank as part of the incoming data processing, also include results from the receiver rank itself.
-* Add timing mechanisms to check:
-  * Time taken to send.
+* ~Add timing mechanisms to check:~
+  * ~Time taken to send.~
   * ~Time taken between sending and receiving.~
   * ~Time taken to process the data.~
   * ~Time taken to wait for all streams to close.~
