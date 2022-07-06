@@ -12,6 +12,9 @@
       <Filter>Quic</Filter>
     </ClCompile>
     <ClCompile Include="Log.cpp" />
+    <ClCompile Include="TimeKeeper.cpp">
+      <Filter>Quic</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Quic">
@@ -29,6 +32,9 @@
       <Filter>Quic</Filter>
     </ClInclude>
     <ClInclude Include="Log.h" />
+    <ClInclude Include="TimeKeeper.h">
+      <Filter>Quic</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

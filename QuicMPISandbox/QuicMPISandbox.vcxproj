@@ -101,12 +101,14 @@ copy /Y "$(SolutionDir)Certificates\mpikeyopen.pem" "$(SolutionDir)$(Platform)\$
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Quic.cpp" />
     <ClCompile Include="QuicDriver.cpp" />
+    <ClCompile Include="TimeKeeper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DataPacket.h" />
     <ClInclude Include="Log.h" />
     <ClInclude Include="Quic.h" />
     <ClInclude Include="QuicDriver.h" />
+    <ClInclude Include="TimeKeeper.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\ReadMe.md" />
