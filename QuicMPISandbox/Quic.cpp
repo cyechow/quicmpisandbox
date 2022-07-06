@@ -9,6 +9,7 @@ Quic::Driver*			Quic::sm_pDriver = NULL;
 std::string				Quic::sm_zTestCertFile = "mpicertopen.pem";
 std::string				Quic::sm_zTestKeyFile = "mpikeyopen.pem";
 std::string				Quic::sm_zTestPassPhrase = "quicmpisandbox";
+TimeKeeper				Quic::sm_TimeKeeper;
 
 // From "quic_platform.h"
 #define CXPLAT_MIN(a,b) (((a) < (b)) ? (a) : (b))
