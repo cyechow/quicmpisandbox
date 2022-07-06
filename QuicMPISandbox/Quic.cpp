@@ -287,7 +287,7 @@ Quic::S_ClientStreamCallback( HQUIC Stream, void*, QUIC_STREAM_EVENT* Event )
 			uint64_t dElapsedMS = uiMS - pData->GetTimeSent();
 			printf( "[strm-client][%p] Data sent (%I64d bytes). Time sent: %I64d ms. Elapsed time: %I64d ms\n", Stream, pData->GetBufferSize(), uiMS, dElapsedMS );
 
-			S_GetDriver()->AddTimeToSend( double( dElapsedMS ) );
+			S_StoreTime( "TimeToSend", double( dElapsedMS ) );
 		}
 		else
 		{
